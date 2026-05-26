@@ -1,0 +1,425 @@
+package com.lechenmusic.ui.screens.settings
+
+import android.content.Context
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.lechenmusic.ui.MainViewModel
+
+@Composable
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+    onLogout: () -> Unit
+) {
+    val serverUrl by viewModel.serverUrl.collectAsState()
+    val username by viewModel.username.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val cacheSize by viewModel.cacheSize.collectAsState()
+    val serverStats by viewModel.serverStats.collectAsState()
+    val context = LocalContext.current
+    var showCacheDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var musicCacheSize by remember { mutableStateOf("计算中...") }
+    var otherDataSize by remember { mutableStateOf("计算中...") }
+
+    // Calculate cache sizes
+    LaunchedEffect(Unit) {
+        musicCacheSize = calculateCacheSize(context, "music_cache")
+        otherDataSize = calculateOtherDataSize(context)
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 100.dp)) {
+        // Header
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                }
+                Text("设置", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // 服务器信息
+        item {
+            SectionTitle("服务器信息")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    InfoRow("服务器地址", serverUrl)
+                    InfoRow("用户名", username)
+                    InfoRow("歌曲数量", if (serverStats.songCount > 0) "${serverStats.songCount}+" else "—")
+                    InfoRow("专辑数量", if (serverStats.albumCount > 0) "${serverStats.albumCount}+" else "—")
+                    InfoRow("歌单数量", if (serverStats.playlistCount > 0) "${serverStats.playlistCount}" else "—")
+                }
+            }
+        }
+
+        // 外观设置
+        item {
+            SectionTitle("外观设置")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    SettingsToggleItem(
+                        icon = Icons.Default.Settings,
+                        iconBg = Color(0xFFA55EEA).copy(alpha = 0.15f),
+                        label = "深色模式",
+                        checked = themeMode == "dark",
+                        onCheckedChange = { viewModel.setThemeMode(if (it) "dark" else "light") }
+                    )
+                }
+            }
+        }
+
+        // 缓存设置
+        item {
+            SectionTitle("缓存设置")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    SettingsClickItem(
+                        icon = Icons.Default.Storage,
+                        iconBg = Color(0xFFFF4757).copy(alpha = 0.15f),
+                        label = "音乐缓存大小",
+                        value = "${cacheSize} GB",
+                        onClick = { showCacheDialog = true }
+                    )
+                }
+            }
+        }
+
+        // 存储空间
+        item {
+            SectionTitle("存储空间")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val musicBytes = getCacheSizeBytes(context, "music_cache")
+                    val otherBytes = getOtherDataSizeBytes(context)
+                    val totalUsed = musicBytes + otherBytes
+                    val maxBytes = cacheSize.toLong() * 1024 * 1024 * 1024
+                    val progress = if (maxBytes > 0) (totalUsed.toFloat() / maxBytes).coerceIn(0f, 1f) else 0f
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("已使用 ${formatSize(totalUsed)}", fontSize = 13.sp)
+                        Text("共 ${cacheSize} GB", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("🎵 音乐缓存 $musicCacheSize", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("📦 其他数据 $otherDataSize", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = {
+                            clearCache(context, "music_cache")
+                            musicCacheSize = "0 B"
+                            otherDataSize = calculateOtherDataSize(context)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("清除缓存", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+
+        // 账号
+        item {
+            SectionTitle("账号")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    SettingsClickItem(
+                        icon = Icons.Default.Person,
+                        iconBg = Color(0xFF5352ED).copy(alpha = 0.15f),
+                        label = "当前账号",
+                        value = username,
+                        onClick = { }
+                    )
+                    SettingsClickItem(
+                        icon = Icons.Default.Link,
+                        iconBg = Color(0xFFFFA502).copy(alpha = 0.15f),
+                        label = "服务器地址",
+                        value = serverUrl,
+                        onClick = { }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showLogoutDialog = true }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("切换服务器", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // 关于
+        item {
+            SectionTitle("关于")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    SettingsClickItem(
+                        icon = Icons.Default.Info,
+                        iconBg = Color(0xFF2ED573).copy(alpha = 0.15f),
+                        label = "关于乐宸音乐",
+                        value = "v1.0.0",
+                        onClick = { }
+                    )
+                }
+            }
+        }
+    }
+
+    // Cache size dialog
+    if (showCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showCacheDialog = false },
+            title = { Text("选择缓存大小") },
+            text = {
+                Column {
+                    listOf(2, 4, 8, 16).forEach { size ->
+                        Text(
+                            "${size} GB",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setCacheSize(size)
+                                    showCacheDialog = false
+                                }
+                                .padding(vertical = 14.dp),
+                            fontSize = 15.sp,
+                            fontWeight = if (size == cacheSize) FontWeight.Bold else FontWeight.Normal,
+                            color = if (size == cacheSize) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCacheDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // Logout dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("切换服务器") },
+            text = { Text("确定要退出当前服务器吗？退出后需要重新输入服务器地址登录。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.logout()
+                    showLogoutDialog = false
+                    onLogout()
+                }) { Text("确定", color = MaterialTheme.colorScheme.primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(title: String) {
+    Text(
+        title,
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp)
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+    if (label != "歌单数量") {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    }
+}
+
+@Composable
+private fun SettingsToggleItem(
+    icon: ImageVector,
+    iconBg: Color,
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(32.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = iconBg
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        }
+        Text(label, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun SettingsClickItem(
+    icon: ImageVector,
+    iconBg: Color,
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(32.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = iconBg
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        }
+        Text(label, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
+        Text(value, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+    }
+}
+
+// Cache utility functions
+private fun getCacheSizeBytes(context: Context, dirName: String): Long {
+    val dir = java.io.File(context.cacheDir, dirName)
+    if (!dir.exists()) return 0
+    return dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+}
+
+private fun getOtherDataSizeBytes(context: Context): Long {
+    var size = 0L
+    // DataStore
+    val datastoreDir = java.io.File(context.filesDir, "datastore")
+    if (datastoreDir.exists()) size += datastoreDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    // Other cache dirs
+    context.cacheDir.listFiles()?.forEach { f ->
+        if (f.name != "music_cache") {
+            size += if (f.isDirectory) f.walkTopDown().filter { it.isFile }.sumOf { it.length() } else f.length()
+        }
+    }
+    return size
+}
+
+private fun calculateCacheSize(context: Context, dirName: String): String {
+    return formatSize(getCacheSizeBytes(context, dirName))
+}
+
+private fun calculateOtherDataSize(context: Context): String {
+    return formatSize(getOtherDataSizeBytes(context))
+}
+
+private fun formatSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024))
+        else -> "%.2f GB".format(bytes / (1024.0 * 1024 * 1024))
+    }
+}
+
+private fun clearCache(context: Context, dirName: String) {
+    val dir = java.io.File(context.cacheDir, dirName)
+    if (dir.exists()) {
+        dir.deleteRecursively()
+        dir.mkdirs()
+    }
+}
