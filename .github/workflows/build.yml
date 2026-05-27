@@ -42,3 +42,18 @@ jobs:
         with:
           name: LeChenMusic-release
           path: app/build/outputs/apk/release/*.apk
+
+      - name: Get version name
+        id: version
+        run: echo "version=$(grep versionName app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-${{ github.run_number }}
+          name: LeChenMusic v${{ steps.version.outputs.version }}
+          files: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          generate_release_notes: true

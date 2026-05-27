@@ -26,6 +26,9 @@ fun RecentPlayedScreen(
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
 
+    // Limit to 20 songs
+    val displaySongs = recentPlayedSongs.take(20)
+
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 160.dp)) {
         // Header
         item {
@@ -45,14 +48,14 @@ fun RecentPlayedScreen(
         item {
             Row(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Text(
-                    "${recentPlayedSongs.size} 首歌曲",
+                    "${displaySongs.size} 首歌曲",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        if (recentPlayedSongs.isEmpty()) {
+        if (displaySongs.isEmpty()) {
             item {
                 Text(
                     "暂无最近播放记录",
@@ -62,13 +65,13 @@ fun RecentPlayedScreen(
             }
         }
 
-        items(recentPlayedSongs) { song ->
+        items(displaySongs) { song ->
             SongItem(
                 song = song,
                 serverUrl = serverUrl,
                 username = username,
                 password = password,
-                onClick = { onSongClick(song, recentPlayedSongs) }
+                onClick = { onSongClick(song, displaySongs) }
             )
         }
     }

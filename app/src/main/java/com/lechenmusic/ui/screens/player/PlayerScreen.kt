@@ -70,6 +70,7 @@ fun PlayerScreen(
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showMoreSheet by remember { mutableStateOf(false) }
     var showPlaylistSelectionDialog by remember { mutableStateOf(false) }
+    var showQueueSheet by remember { mutableStateOf(false) }
     val timerRemainingSeconds by viewModel.timerRemainingSeconds.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val context = LocalContext.current
@@ -295,7 +296,7 @@ fun PlayerScreen(
                 }
             }
 
-            // Action Bar: 收藏, 添加到歌单, 定时
+            // Action Bar: 收藏, 添加到歌单, 定时, 队列
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -336,6 +337,13 @@ fun PlayerScreen(
                         color = if (timerRemainingSeconds > 0) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                // Queue button (新增)
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { showQueueSheet = true }) {
+                    Icon(Icons.Default.QueueMusic, contentDescription = "队列",
+                        modifier = Modifier.size(24.dp))
+                    Text("队列", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -588,6 +596,94 @@ fun PlayerScreen(
         }
     }
 
+    // Queue Sheet (新增 - 当前播放队列)
+    if (showQueueSheet) {
+        ModalBottomSheet(onDismissRequest = { showQueueSheet = false }) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("播放队列", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${playlist.size} 首歌曲",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    itemsIndexed(playlist) { index, s ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    playerManager.playSong(s, playlist)
+                                    showQueueSheet = false
+                                }
+                                .background(
+                                    if (index == currentIndex) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    else Color.Transparent
+                                )
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (index == currentIndex) {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp).width(30.dp)
+                                )
+                            } else {
+                                Text(
+                                    "${index + 1}",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(30.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            CoverImage(
+                                coverArtId = s.coverArt ?: s.albumId,
+                                serverUrl = serverUrl,
+                                username = username,
+                                password = password,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp))
+                            )
+                            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(
+                                    s.title,
+                                    fontSize = 14.sp,
+                                    color = if (index == currentIndex) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (index == currentIndex) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${s.artist} · ${s.album}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                s.durationFormatted,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // More Sheet
     if (showMoreSheet) {
         ModalBottomSheet(onDismissRequest = { showMoreSheet = false }) {
@@ -601,6 +697,10 @@ fun PlayerScreen(
                 MoreItem(Icons.Default.Timer, "定时停止播放") {
                     showMoreSheet = false
                     showTimerDialog = true
+                }
+                MoreItem(Icons.Default.QueueMusic, "播放队列") {
+                    showMoreSheet = false
+                    showQueueSheet = true
                 }
                 MoreItem(Icons.Default.Person, "查看歌手") {
                     showMoreSheet = false

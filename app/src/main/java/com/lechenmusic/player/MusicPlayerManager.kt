@@ -39,6 +39,7 @@ class MusicPlayerManager(private val context: Context) {
     private var repository: MusicRepository? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaSession: MediaSession? = null
+    private var playbackService: MusicPlaybackService? = null
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -95,7 +96,6 @@ class MusicPlayerManager(private val context: Context) {
                 addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         _isPlaying.value = isPlaying
-                        updateNotification()
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY) {
@@ -117,7 +117,7 @@ class MusicPlayerManager(private val context: Context) {
             .setCallback(object : MediaSession.Callback {})
             .build()
 
-        // Start foreground service for persistent notification
+        // Start foreground service and pass MediaSession
         startForegroundService()
 
         // Register broadcast receiver for alarm-based timer
@@ -144,6 +144,11 @@ class MusicPlayerManager(private val context: Context) {
             } else {
                 context.startService(intent)
             }
+            // Pass MediaSession to service after a short delay to ensure service is created
+            scope.launch {
+                delay(500)
+                MusicPlaybackServiceHolder.service?.setMediaSession(mediaSession!!)
+            }
         } catch (_: Exception) { }
     }
 
@@ -160,29 +165,6 @@ class MusicPlayerManager(private val context: Context) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
-    }
-
-    private fun updateNotification() {
-        val song = _currentSong.value ?: return
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        val openIntent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentIntent(pendingIntent)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(song.title)
-            .setContentText("${song.artist} · ${song.album}")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(_isPlaying.value)
-            .build()
-
-        nm.notify(NOTIFICATION_ID, notification)
     }
 
     fun playSong(song: Song, songs: List<Song> = listOf(song)) {
@@ -211,7 +193,6 @@ class MusicPlayerManager(private val context: Context) {
         }
         _currentSong.value = song
         checkStarred(song.id)
-        updateNotification()
     }
 
     fun togglePlayPause() {
@@ -298,15 +279,12 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     private fun checkStarred(songId: String) {
-        // Check if song is starred by looking at the starred field
         val song = _currentSong.value
         _isStarred.value = song?.isStarred == true
     }
 
     fun setTimer(minutes: Int) {
-        // Cancel any existing timer
         cancelTimer()
-        // Use AlarmManager for reliable background timer
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(ACTION_STOP_PLAYBACK)
         intent.setPackage(context.packageName)
@@ -319,7 +297,6 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun cancelTimer() {
-        // Cancel alarm
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(ACTION_STOP_PLAYBACK)
         intent.setPackage(context.packageName)
@@ -328,7 +305,6 @@ class MusicPlayerManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
-        // Also cancel coroutine timer
         timerJob?.cancel()
         timerJob = null
     }
@@ -362,7 +338,6 @@ class MusicPlayerManager(private val context: Context) {
         }
         mediaSession = null
         player = null
-        // Stop foreground service
         try {
             val intent = Intent(context, MusicPlaybackService::class.java)
             context.stopService(intent)

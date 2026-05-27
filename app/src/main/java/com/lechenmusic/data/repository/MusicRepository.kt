@@ -318,6 +318,15 @@ class MusicRepository {
         }
     }
 
+    suspend fun updatePlaylistPublic(playlistId: String, isPublic: Boolean): Result<Unit> {
+        return try {
+            api!!.updatePlaylist(username, password, playlistId, public = isPublic)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getIndexes(): Result<List<Artist>> {
         return try {
             val response = api!!.getIndexes(username, password)

@@ -1,5 +1,6 @@
 package com.lechenmusic.ui.screens.songs
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,37 +26,51 @@ fun AllSongsScreen(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
-    var isLoading by remember { mutableStateOf(true) }
-    var loadError by remember { mutableStateOf<String?>(null) }
+    val songsLoading by viewModel.songsLoading.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        isLoading = true
-        loadError = null
-        try {
+        if (allSongs.isEmpty()) {
             viewModel.loadAllSongs()
-        } catch (e: Exception) {
-            loadError = e.message
-        } finally {
-            isLoading = false
         }
     }
 
-    // Watch for data changes
-    LaunchedEffect(allSongs) {
-        if (allSongs.isNotEmpty()) {
-            isLoading = false
-            loadError = null
+    // Show loading toast
+    LaunchedEffect(songsLoading) {
+        if (songsLoading) {
+            Toast.makeText(context, "加载中，请稍等", Toast.LENGTH_SHORT).show()
         }
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 160.dp)) {
         item {
-            Text(
-                "歌曲",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "歌曲",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (songsLoading) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "加载中...",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
 
         if (allSongs.isNotEmpty()) {
@@ -75,18 +91,7 @@ fun AllSongsScreen(
                     onClick = { onSongClick(song, allSongs) }
                 )
             }
-        } else if (isLoading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 60.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-        } else if (loadError != null) {
+        } else if (!songsLoading) {
             item {
                 Column(
                     modifier = Modifier
@@ -95,33 +100,15 @@ fun AllSongsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "加载失败",
+                        "暂无歌曲",
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        loadError ?: "",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.error
-                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        isLoading = true
-                        loadError = null
-                        viewModel.loadAllSongs()
-                    }) {
-                        Text("重试")
+                    Button(onClick = { viewModel.loadAllSongs() }) {
+                        Text("重新加载")
                     }
                 }
-            }
-        } else {
-            item {
-                Text(
-                    "暂无歌曲",
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 40.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }

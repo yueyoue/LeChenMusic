@@ -29,12 +29,16 @@ fun PlaylistDetailScreen(
     onSongClick: (Song, List<Song>) -> Unit
 ) {
     val playlist by viewModel.currentPlaylist.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val currentUser by viewModel.username.collectAsState()
     val context = LocalContext.current
+
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showPublicDialog by remember { mutableStateOf(false) }
 
     // Show toast messages
     LaunchedEffect(toastMessage) {
@@ -115,16 +119,80 @@ fun PlaylistDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        val songs = currentPlaylist.songs
-                        if (songs.isNotEmpty()) onSongClick(songs.first(), songs)
-                    },
-                    shape = RoundedCornerShape(20.dp)
+
+                // Action buttons row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("播放全部")
+                    // Play all button
+                    Button(
+                        onClick = {
+                            val songs = currentPlaylist.songs
+                            if (songs.isNotEmpty()) onSongClick(songs.first(), songs)
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("播放全部")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Create playlist button
+                    OutlinedButton(
+                        onClick = { showCreatePlaylistDialog = true },
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("创建歌单")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Sync button
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.syncPlaylists()
+                            viewModel.loadPlaylistDetail(playlistId)
+                            Toast.makeText(context, "正在同步歌单...", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // Public/Private toggle (for owner)
+                if (isOwner) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (currentPlaylist.public) Icons.Default.Public else Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (currentPlaylist.public) "公开歌单" else "私密歌单",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = currentPlaylist.public,
+                            onCheckedChange = { showPublicDialog = true }
+                        )
+                    }
                 }
             }
         }
@@ -172,6 +240,80 @@ fun PlaylistDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveDialog = null }) { Text("取消") }
+            }
+        )
+    }
+
+    // Create playlist dialog
+    if (showCreatePlaylistDialog) {
+        var newPlaylistName by remember { mutableStateOf("") }
+        var newPlaylistPublic by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = { Text("新建歌单") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newPlaylistName,
+                        onValueChange = { newPlaylistName = it },
+                        placeholder = { Text("输入歌单名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("公开歌单", fontSize = 14.sp)
+                        Switch(
+                            checked = newPlaylistPublic,
+                            onCheckedChange = { newPlaylistPublic = it }
+                        )
+                    }
+                    Text(
+                        if (newPlaylistPublic) "其他用户可以看到此歌单" else "仅自己可见",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newPlaylistName.isNotBlank()) {
+                        viewModel.createPlaylist(newPlaylistName, newPlaylistPublic)
+                        showCreatePlaylistDialog = false
+                    }
+                }) { Text("创建", color = MaterialTheme.colorScheme.primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // Public/Private toggle confirmation dialog
+    if (showPublicDialog) {
+        val newPublic = !currentPlaylist.public
+        AlertDialog(
+            onDismissRequest = { showPublicDialog = false },
+            title = { Text(if (newPublic) "设为公开" else "设为私密") },
+            text = {
+                Text(if (newPublic) "确定要将此歌单设为公开吗？其他用户将可以看到此歌单。"
+                else "确定要将此歌单设为私密吗？其他用户将无法看到此歌单。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Use updatePlaylist API to toggle public
+                    viewModel.togglePlaylistPublic(playlistId, newPublic)
+                    showPublicDialog = false
+                }) { Text("确定", color = MaterialTheme.colorScheme.primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPublicDialog = false }) { Text("取消") }
             }
         )
     }

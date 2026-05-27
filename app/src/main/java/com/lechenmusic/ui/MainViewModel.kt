@@ -3,6 +3,8 @@ package com.lechenmusic.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.lechenmusic.LeChenApp
 import com.lechenmusic.data.model.*
 import com.lechenmusic.data.repository.MusicRepository
@@ -19,6 +21,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: MusicRepository = app.repository
     private val settings: SettingsRepository = app.settingsRepository
     val playerManager: MusicPlayerManager = app.playerManager
+    private val gson = Gson()
 
     // Theme
     val themeMode: StateFlow<String> = settings.themeMode
@@ -80,6 +83,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // All songs
     private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
     val allSongs: StateFlow<List<Song>> = _allSongs.asStateFlow()
+
+    // Songs loading state
+    private val _songsLoading = MutableStateFlow(false)
+    val songsLoading: StateFlow<Boolean> = _songsLoading.asStateFlow()
 
     // Timer countdown (seconds remaining)
     private val _timerRemainingSeconds = MutableStateFlow(0L)
@@ -207,6 +214,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             // Load server stats
             repository.getServerStats().onSuccess { _serverStats.value = it }
+
+            // Preload all songs cache in background
+            loadAllSongsFromCacheOrServer()
         }
     }
 
@@ -318,19 +328,98 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Load all songs with local caching:
+     * 1. First load from local cache (instant)
+     * 2. Then refresh from server in background
+     * 3. Only load new songs from server (incremental)
+     */
     fun loadAllSongs() {
         viewModelScope.launch {
-            _allSongs.value = emptyList()
-            // Use getAllSongs which combines search + album iteration for maximum coverage
-            repository.getAllSongs().onSuccess { songs ->
-                _allSongs.value = songs
-            }.onFailure {
-                // Fallback: try getRandomSongs
-                repository.getRandomSongs(500).onSuccess { songs ->
-                    _allSongs.value = songs
+            _songsLoading.value = true
+            try {
+                // Step 1: Try loading from cache first
+                val cachedJson = settings.getCachedSongs()
+                if (cachedJson.isNotBlank()) {
+                    try {
+                        val type = object : TypeToken<List<Song>>() {}.type
+                        val cachedSongs: List<Song> = gson.fromJson(cachedJson, type)
+                        if (cachedSongs.isNotEmpty()) {
+                            _allSongs.value = cachedSongs
+                            _songsLoading.value = false
+                            // Continue to refresh from server in background
+                            refreshSongsFromServer(cachedSongs)
+                            return@launch
+                        }
+                    } catch (_: Exception) { }
                 }
+
+                // Step 2: No cache, load from server
+                val result = repository.getAllSongs()
+                result.onSuccess { songs ->
+                    _allSongs.value = songs
+                    // Save to cache
+                    saveSongsToCache(songs)
+                }.onFailure {
+                    // Fallback
+                    repository.getRandomSongs(500).onSuccess { songs ->
+                        _allSongs.value = songs
+                        saveSongsToCache(songs)
+                    }
+                }
+            } finally {
+                _songsLoading.value = false
             }
         }
+    }
+
+    /**
+     * Load from cache first, then refresh from server
+     */
+    private fun loadAllSongsFromCacheOrServer() {
+        viewModelScope.launch {
+            val cachedJson = settings.getCachedSongs()
+            if (cachedJson.isNotBlank()) {
+                try {
+                    val type = object : TypeToken<List<Song>>() {}.type
+                    val cachedSongs: List<Song> = gson.fromJson(cachedJson, type)
+                    if (cachedSongs.isNotEmpty()) {
+                        _allSongs.value = cachedSongs
+                        // Refresh from server in background
+                        refreshSongsFromServer(cachedSongs)
+                        return@launch
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    /**
+     * Refresh songs from server, merging with cached songs (only add new ones)
+     */
+    private suspend fun refreshSongsFromServer(existingSongs: List<Song>) {
+        try {
+            val existingIds = existingSongs.map { it.id }.toSet()
+            val serverResult = repository.getAllSongs()
+            serverResult.onSuccess { serverSongs ->
+                val newSongs = serverSongs.filter { it.id !in existingIds }
+                if (newSongs.isNotEmpty()) {
+                    val merged = existingSongs + newSongs
+                    _allSongs.value = merged
+                    saveSongsToCache(merged)
+                } else {
+                    // No new songs, just update cache timestamp
+                    saveSongsToCache(existingSongs)
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    private suspend fun saveSongsToCache(songs: List<Song>) {
+        try {
+            val json = gson.toJson(songs)
+            settings.saveCachedSongs(json)
+        } catch (_: Exception) { }
     }
 
     fun addToPlaylist(playlistId: String, songId: String, playlistOwner: String = "") {
@@ -377,6 +466,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun createPlaylist(name: String, isPublic: Boolean = false) {
+        viewModelScope.launch {
+            repository.createPlaylist(name, isPublic = isPublic).onSuccess {
+                _toastMessage.value = "歌单创建成功"
+                repository.getPlaylists().onSuccess { _playlists.value = it }
+            }.onFailure {
+                _toastMessage.value = "创建失败: ${it.message}"
+            }
+        }
+    }
+
     // Timer countdown job
     private var countdownJob: kotlinx.coroutines.Job? = null
 
@@ -392,9 +492,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _timerRemainingSeconds.value = (_timerRemainingSeconds.value - 1).coerceAtLeast(0)
             }
             // Timer reached zero - force pause playback
-            // Use both methods for reliability
             playerManager.forcePause()
-            // Also try direct player pause via the service
             try {
                 playerManager.forcePause()
             } catch (_: Exception) { }
@@ -436,6 +534,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Refresh recent played
                 loadRecentPlayedSongs()
 
+                // Clear songs cache to force refresh
+                settings.clearSongsCache()
+
                 _syncStatus.value = "同步完成 ✓\n已同步: 歌单、歌手、收藏、专辑、歌曲、服务器统计"
             } catch (e: Exception) {
                 _syncStatus.value = "同步失败: ${e.message}"
@@ -449,6 +550,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.getPlaylists().onSuccess { _playlists.value = it }
             repository.getStarred().onSuccess { _starredSongs.value = it.songs }
+        }
+    }
+
+    fun togglePlaylistPublic(playlistId: String, isPublic: Boolean) {
+        viewModelScope.launch {
+            repository.updatePlaylistPublic(playlistId, isPublic).onSuccess {
+                _toastMessage.value = if (isPublic) "歌单已设为公开" else "歌单已设为私密"
+                // Refresh playlist detail
+                repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+                // Refresh playlist list
+                repository.getPlaylists().onSuccess { _playlists.value = it }
+            }.onFailure {
+                _toastMessage.value = "修改失败: ${it.message}"
+            }
         }
     }
 }
