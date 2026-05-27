@@ -25,6 +25,7 @@ class MusicPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var notificationManager: NotificationManager? = null
     private var listener: Player.Listener? = null
+    private var isForeground = false
 
     override fun onCreate() {
         super.onCreate()
@@ -32,9 +33,26 @@ class MusicPlaybackService : MediaSessionService() {
             createNotificationChannel()
             notificationManager = getSystemService(NotificationManager::class.java)
             MusicPlaybackServiceHolder.service = this
+            // Must call startForeground immediately on Android 12+
+            val notification = buildDefaultNotification()
+            startForeground(NOTIFICATION_ID, notification)
+            isForeground = true
         } catch (e: Exception) {
             Log.e(TAG, "onCreate failed", e)
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        // Ensure we stay foreground
+        if (!isForeground) {
+            try {
+                val notification = buildDefaultNotification()
+                startForeground(NOTIFICATION_ID, notification)
+                isForeground = true
+            } catch (_: Exception) {}
+        }
+        return START_STICKY
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -104,6 +122,24 @@ class MusicPlaybackService : MediaSessionService() {
         } catch (_: Exception) {}
     }
 
+    private fun buildDefaultNotification(): Notification {
+        val openIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentIntent(pendingIntent)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("悦音")
+            .setContentText("正在播放音乐")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setShowWhen(false)
+            .build()
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Don't stop when task is removed - keep playing
     }
@@ -111,17 +147,15 @@ class MusicPlaybackService : MediaSessionService() {
     override fun onDestroy() {
         try {
             MusicPlaybackServiceHolder.service = null
+            // Remove listener only — do NOT release player or MediaSession here
+            // Player and MediaSession are owned by MusicPlayerManager
             listener?.let { oldListener ->
                 try { mediaSession?.player?.removeListener(oldListener) } catch (_: Exception) {}
             }
             listener = null
-            mediaSession?.run {
-                try { player.release() } catch (_: Exception) {}
-                try { release() } catch (_: Exception) {}
-            }
             mediaSession = null
         } catch (_: Exception) {}
-        super.onDestroy()
+        try { super.onDestroy() } catch (_: Exception) {}
     }
 
     private fun createNotificationChannel() {

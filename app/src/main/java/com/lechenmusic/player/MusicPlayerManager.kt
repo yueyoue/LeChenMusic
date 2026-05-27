@@ -40,6 +40,7 @@ class MusicPlayerManager(private val context: Context) {
     private var repository: MusicRepository? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaSession: MediaSession? = null
+    private var isReleased = false
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -73,6 +74,7 @@ class MusicPlayerManager(private val context: Context) {
 
     private var timerJob: kotlinx.coroutines.Job? = null
     private var alarmReceiver: BroadcastReceiver? = null
+    private var receiverRegistered = false
 
     companion object {
         const val ACTION_STOP_PLAYBACK = "com.lechenmusic.STOP_PLAYBACK"
@@ -124,7 +126,11 @@ class MusicPlayerManager(private val context: Context) {
                     .build()
             }
 
-            startForegroundService()
+            // Start foreground service with a small delay to ensure Application.onCreate completes
+            scope.launch {
+                delay(200)
+                startForegroundService()
+            }
 
             alarmReceiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -139,6 +145,7 @@ class MusicPlayerManager(private val context: Context) {
             } else {
                 context.registerReceiver(alarmReceiver, filter)
             }
+            receiverRegistered = true
         } catch (e: Exception) {
             Log.e(TAG, "Init failed", e)
         }
@@ -152,13 +159,25 @@ class MusicPlayerManager(private val context: Context) {
             } else {
                 context.startService(intent)
             }
+            // Wait for service to be ready, then pass MediaSession
             scope.launch {
-                delay(500)
+                var retries = 0
+                while (MusicPlaybackServiceHolder.service == null && retries < 20) {
+                    delay(100)
+                    retries++
+                }
                 try {
-                    MusicPlaybackServiceHolder.service?.setMediaSession(mediaSession!!)
-                } catch (_: Exception) {}
+                    val session = mediaSession
+                    if (session != null) {
+                        MusicPlaybackServiceHolder.service?.setMediaSession(session)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set MediaSession on service", e)
+                }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "startForegroundService failed", e)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -180,6 +199,7 @@ class MusicPlayerManager(private val context: Context) {
 
     fun playSong(song: Song, songs: List<Song> = listOf(song)) {
         try {
+            if (isReleased) return
             val p = player ?: return
             val repo = repository ?: return
 
@@ -222,6 +242,7 @@ class MusicPlayerManager(private val context: Context) {
 
     fun togglePlayPause() {
         try {
+            if (isReleased) return
             val p = player ?: return
             if (p.isPlaying) p.pause() else p.play()
         } catch (_: Exception) {}
@@ -229,12 +250,14 @@ class MusicPlayerManager(private val context: Context) {
 
     fun forcePause() {
         try {
+            if (isReleased) return
             player?.let { if (it.isPlaying) it.pause() }
         } catch (_: Exception) {}
     }
 
     fun skipNext() {
         try {
+            if (isReleased) return
             val p = player ?: return
             val list = _playlist.value
             if (list.isEmpty()) return
@@ -255,6 +278,7 @@ class MusicPlayerManager(private val context: Context) {
 
     fun skipPrevious() {
         try {
+            if (isReleased) return
             val p = player ?: return
             if (p.currentPosition > 3000) {
                 p.seekTo(0)
@@ -268,11 +292,15 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun seekTo(position: Long) {
-        try { player?.seekTo(position) } catch (_: Exception) {}
+        try {
+            if (isReleased) return
+            player?.seekTo(position)
+        } catch (_: Exception) {}
     }
 
     fun seekToProgress(progress: Float) {
         try {
+            if (isReleased) return
             val p = player ?: return
             val pos = (p.duration * progress).toLong().coerceIn(0, p.duration.coerceAtLeast(0))
             p.seekTo(pos)
@@ -282,7 +310,7 @@ class MusicPlayerManager(private val context: Context) {
     fun toggleShuffle() {
         try {
             _shuffleMode.value = !_shuffleMode.value
-            player?.shuffleModeEnabled = _shuffleMode.value
+            if (!isReleased) player?.shuffleModeEnabled = _shuffleMode.value
         } catch (_: Exception) {}
     }
 
@@ -293,10 +321,12 @@ class MusicPlayerManager(private val context: Context) {
                 RepeatMode.ALL -> RepeatMode.ONE
                 RepeatMode.ONE -> RepeatMode.OFF
             }
-            player?.repeatMode = when (_repeatMode.value) {
-                RepeatMode.OFF -> Player.REPEAT_MODE_OFF
-                RepeatMode.ONE -> Player.REPEAT_MODE_ONE
-                RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+            if (!isReleased) {
+                player?.repeatMode = when (_repeatMode.value) {
+                    RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+                    RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+                    RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+                }
             }
         } catch (_: Exception) {}
     }
@@ -357,6 +387,7 @@ class MusicPlayerManager(private val context: Context) {
 
     private fun updateCurrentFromPlayer() {
         try {
+            if (isReleased) return
             val p = player ?: return
             val list = _playlist.value
             if (list.isEmpty()) return
@@ -371,6 +402,7 @@ class MusicPlayerManager(private val context: Context) {
 
     fun updateProgress() {
         try {
+            if (isReleased) return
             val p = player ?: return
             _currentPosition.value = p.currentPosition.coerceAtLeast(0)
             _duration.value = p.duration.coerceAtLeast(0)
@@ -379,20 +411,27 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun release() {
+        if (isReleased) return
+        isReleased = true
         try {
-            alarmReceiver?.let {
-                try { context.unregisterReceiver(it) } catch (_: Exception) {}
+            // Unregister alarm receiver
+            if (receiverRegistered) {
+                alarmReceiver?.let {
+                    try { context.unregisterReceiver(it) } catch (_: Exception) {}
+                }
+                receiverRegistered = false
+                alarmReceiver = null
             }
-            mediaSession?.run {
-                try { player.release() } catch (_: Exception) {}
-                try { release() } catch (_: Exception) {}
-            }
-            mediaSession = null
-            player = null
+            // Stop the service first (service will NOT release player)
             try {
                 val intent = Intent(context, MusicPlaybackService::class.java)
                 context.stopService(intent)
             } catch (_: Exception) {}
+            // Release MediaSession and Player (owner = MusicPlayerManager)
+            try { mediaSession?.release() } catch (_: Exception) {}
+            mediaSession = null
+            try { player?.release() } catch (_: Exception) {}
+            player = null
         } catch (_: Exception) {}
     }
 }
