@@ -1,9 +1,18 @@
 # ProGuard rules for LeChenMusic
 
-# Retrofit
+# Disable aggressive optimization that causes random crashes
+-dontoptimize
 -keepattributes Signature
 -keepattributes Exceptions
 -keepattributes *Annotation*
+-keepattributes RuntimeVisibleAnnotations
+-keepattributes RuntimeVisibleParameterAnnotations
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
+-keepattributes SourceFile
+-keepattributes LineNumberTable
+
+# Retrofit
 -keep class retrofit2.** { *; }
 -keepclasseswithmembers class * {
     @retrofit2.http.* <methods>;
@@ -11,25 +20,18 @@
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
     @retrofit2.http.* <methods>;
 }
-# Keep Retrofit service method return types (critical for generic type resolution)
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 
 # Gson
--keepattributes Signature
--keepattributes *Annotation*
 -dontwarn sun.misc.**
 -keep class com.google.gson.** { *; }
 -keep class com.google.gson.stream.** { *; }
 # Keep all Subsonic model classes and their fields
 -keep class com.lechenmusic.data.model.** { *; }
-# Keep generic type info for Gson deserialization
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
-# Preserve Type information for generic classes
--keepattributes EnclosingMethod
--keepattributes InnerClasses
 
 # OkHttp
 -dontwarn okhttp3.**
@@ -55,30 +57,36 @@
 -keep class com.lechenmusic.data.api.ApiClient { *; }
 -keep class com.lechenmusic.data.api.SafeJsonConverterFactory { *; }
 
-# Compose - prevent R8 from stripping compose internals that cause crashes
+# Compose - keep everything to prevent random crashes
 -keep class androidx.compose.** { *; }
 -keepclassmembers class androidx.compose.** { *; }
 -dontwarn androidx.compose.**
 
-# Keep Kotlin serialization and metadata
--keepattributes RuntimeVisibleAnnotations
--keep class kotlin.Metadata { *; }
--keepclassmembers class kotlin.Metadata {
-    public <methods>;
-}
-
-# Keep all Kotlin classes (prevents various Compose crashes in release)
+# Keep Kotlin classes
 -keep class kotlin.** { *; }
 -keepclassmembers class kotlin.** { *; }
 -keep class kotlin.reflect.** { *; }
 
-# Prevent stripping of Compose Foundation text input classes
--keep class androidx.compose.foundation.text.** { *; }
--keep class androidx.compose.ui.text.** { *; }
--keep class androidx.compose.ui.text.input.** { *; }
-
-# Keep AndroidX core classes
+# Keep AndroidX classes
 -keep class androidx.core.** { *; }
 -keep class androidx.lifecycle.** { *; }
 -keep class androidx.activity.** { *; }
 -keep class androidx.navigation.** { *; }
+-keep class androidx.datastore.** { *; }
+
+# Keep all ViewModels
+-keep class * extends androidx.lifecycle.ViewModel { *; }
+-keep class * extends androidx.lifecycle.AndroidViewModel { *; }
+
+# Keep Application class
+-keep class com.lechenmusic.LeChenApp { *; }
+-keep class com.lechenmusic.MainActivity { *; }
+
+# Keep all R classes
+-keep class **.R$* { *; }
+
+# Keep enum values
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
