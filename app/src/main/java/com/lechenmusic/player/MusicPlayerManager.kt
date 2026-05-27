@@ -1,0 +1,371 @@
+package com.lechenmusic.player
+
+import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import com.lechenmusic.MainActivity
+import com.lechenmusic.data.model.Song
+import com.lechenmusic.data.repository.MusicRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import androidx.media3.common.PlaybackException
+import kotlinx.coroutines.delay
+
+enum class RepeatMode { OFF, ONE, ALL }
+
+class MusicPlayerManager(private val context: Context) {
+    private var player: ExoPlayer? = null
+    private var repository: MusicRepository? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var mediaSession: MediaSession? = null
+
+    private val _currentSong = MutableStateFlow<Song?>(null)
+    val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _progress = MutableStateFlow(0f)
+    val progress: StateFlow<Float> = _progress.asStateFlow()
+
+    private val _currentPosition = MutableStateFlow(0L)
+    val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+
+    private val _duration = MutableStateFlow(0L)
+    val duration: StateFlow<Long> = _duration.asStateFlow()
+
+    private val _playlist = MutableStateFlow<List<Song>>(emptyList())
+    val playlist: StateFlow<List<Song>> = _playlist.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(-1)
+    val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
+
+    private val _shuffleMode = MutableStateFlow(false)
+    val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
+    val repeatMode: StateFlow<RepeatMode> = _repeatMode.asStateFlow()
+
+    private val _isStarred = MutableStateFlow(false)
+    val isStarred: StateFlow<Boolean> = _isStarred.asStateFlow()
+
+    private var timerJob: kotlinx.coroutines.Job? = null
+    private var alarmReceiver: BroadcastReceiver? = null
+
+    companion object {
+        const val ACTION_STOP_PLAYBACK = "com.lechenmusic.STOP_PLAYBACK"
+        const val CHANNEL_ID = "lechen_music_playback"
+        const val NOTIFICATION_ID = 1001
+    }
+
+    fun init(repo: MusicRepository) {
+        repository = repo
+        player = ExoPlayer.Builder(context)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build(),
+                true // handle audio focus
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build().apply {
+                addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        _isPlaying.value = isPlaying
+                        updateNotification()
+                    }
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY) {
+                            _duration.value = duration
+                        }
+                    }
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        updateCurrentFromPlayer()
+                    }
+                    override fun onPlayerError(error: PlaybackException) {
+                        skipNext()
+                    }
+                })
+            }
+
+        // Create MediaSession for lock screen controls
+        createNotificationChannel()
+        mediaSession = MediaSession.Builder(context, player!!)
+            .setCallback(object : MediaSession.Callback {})
+            .build()
+
+        // Start foreground service for persistent notification
+        startForegroundService()
+
+        // Register broadcast receiver for alarm-based timer
+        alarmReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                if (intent?.action == ACTION_STOP_PLAYBACK) {
+                    player?.pause()
+                }
+            }
+        }
+        val filter = IntentFilter(ACTION_STOP_PLAYBACK)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(alarmReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(alarmReceiver, filter)
+        }
+    }
+
+    private fun startForegroundService() {
+        try {
+            val intent = Intent(context, MusicPlaybackService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "音乐播放",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "悦音播放控制"
+                setShowBadge(false)
+            }
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun updateNotification() {
+        val song = _currentSong.value ?: return
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val openIntent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentIntent(pendingIntent)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(song.title)
+            .setContentText("${song.artist} · ${song.album}")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(_isPlaying.value)
+            .build()
+
+        nm.notify(NOTIFICATION_ID, notification)
+    }
+
+    fun playSong(song: Song, songs: List<Song> = listOf(song)) {
+        _playlist.value = songs
+        val index = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+        _currentIndex.value = index
+
+        player?.apply {
+            val mediaItems = songs.map { s ->
+                val url = repository!!.getStreamUrl(s.id)
+                MediaItem.Builder()
+                    .setUri(url)
+                    .setMediaId(s.id)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(s.title)
+                            .setArtist(s.artist)
+                            .setAlbumTitle(s.album)
+                            .build()
+                    )
+                    .build()
+            }
+            setMediaItems(mediaItems, index, 0)
+            prepare()
+            play()
+        }
+        _currentSong.value = song
+        checkStarred(song.id)
+        updateNotification()
+    }
+
+    fun togglePlayPause() {
+        player?.let {
+            if (it.isPlaying) it.pause() else it.play()
+        }
+    }
+
+    fun forcePause() {
+        try {
+            player?.let {
+                if (it.isPlaying) {
+                    it.pause()
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun skipNext() {
+        player?.let {
+            if (_shuffleMode.value) {
+                val randomIndex = (_playlist.value.indices).random()
+                it.seekTo(randomIndex, 0)
+            } else if (it.hasNextMediaItem()) {
+                it.seekToNext()
+            } else if (_repeatMode.value == RepeatMode.ALL) {
+                it.seekTo(0, 0)
+            }
+        }
+        updateCurrentFromPlayer()
+    }
+
+    fun skipPrevious() {
+        player?.let {
+            if (it.currentPosition > 3000) {
+                it.seekTo(0)
+            } else if (it.hasPreviousMediaItem()) {
+                it.seekToPrevious()
+            }
+        }
+        updateCurrentFromPlayer()
+    }
+
+    fun seekTo(position: Long) {
+        player?.seekTo(position)
+    }
+
+    fun seekToProgress(progress: Float) {
+        player?.let {
+            val pos = (it.duration * progress).toLong().coerceIn(0, it.duration)
+            it.seekTo(pos)
+        }
+    }
+
+    fun toggleShuffle() {
+        _shuffleMode.value = !_shuffleMode.value
+        player?.shuffleModeEnabled = _shuffleMode.value
+    }
+
+    fun toggleRepeat() {
+        _repeatMode.value = when (_repeatMode.value) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+        player?.repeatMode = when (_repeatMode.value) {
+            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+            RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+        }
+    }
+
+    fun toggleStar() {
+        val song = _currentSong.value ?: return
+        val repo = repository ?: return
+        scope.launch(Dispatchers.IO) {
+            if (_isStarred.value) {
+                repo.unstar(song.id)
+            } else {
+                repo.star(song.id)
+            }
+            _isStarred.value = !_isStarred.value
+        }
+    }
+
+    private fun checkStarred(songId: String) {
+        // Check if song is starred by looking at the starred field
+        val song = _currentSong.value
+        _isStarred.value = song?.isStarred == true
+    }
+
+    fun setTimer(minutes: Int) {
+        // Cancel any existing timer
+        cancelTimer()
+        // Use AlarmManager for reliable background timer
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(ACTION_STOP_PLAYBACK)
+        intent.setPackage(context.packageName)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val triggerTime = System.currentTimeMillis() + minutes * 60 * 1000L
+        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+    }
+
+    fun cancelTimer() {
+        // Cancel alarm
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(ACTION_STOP_PLAYBACK)
+        intent.setPackage(context.packageName)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+        // Also cancel coroutine timer
+        timerJob?.cancel()
+        timerJob = null
+    }
+
+    private fun updateCurrentFromPlayer() {
+        player?.let { p ->
+            val index = p.currentMediaItemIndex
+            _currentIndex.value = index
+            if (index in _playlist.value.indices) {
+                _currentSong.value = _playlist.value[index]
+                checkStarred(_playlist.value[index].id)
+            }
+        }
+    }
+
+    fun updateProgress() {
+        player?.let {
+            _currentPosition.value = it.currentPosition
+            _duration.value = it.duration.coerceAtLeast(0)
+            _progress.value = if (it.duration > 0) it.currentPosition.toFloat() / it.duration else 0f
+        }
+    }
+
+    fun release() {
+        alarmReceiver?.let {
+            try { context.unregisterReceiver(it) } catch (_: Exception) { }
+        }
+        mediaSession?.run {
+            player.release()
+            release()
+        }
+        mediaSession = null
+        player = null
+        // Stop foreground service
+        try {
+            val intent = Intent(context, MusicPlaybackService::class.java)
+            context.stopService(intent)
+        } catch (_: Exception) { }
+    }
+}
