@@ -5,8 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
@@ -14,25 +14,27 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.lechenmusic.MainActivity
 
-/**
- * Foreground service that keeps the music playing when the app is in background.
- * Provides lock screen notification with playback controls.
- */
 class MusicPlaybackService : MediaSessionService() {
 
     companion object {
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
+        private const val TAG = "MusicPlaybackService"
     }
 
     private var mediaSession: MediaSession? = null
     private var notificationManager: NotificationManager? = null
+    private var listener: Player.Listener? = null
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-        notificationManager = getSystemService(NotificationManager::class.java)
-        MusicPlaybackServiceHolder.service = this
+        try {
+            createNotificationChannel()
+            notificationManager = getSystemService(NotificationManager::class.java)
+            MusicPlaybackServiceHolder.service = this
+        } catch (e: Exception) {
+            Log.e(TAG, "onCreate failed", e)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -40,54 +42,66 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     fun setMediaSession(session: MediaSession) {
-        mediaSession = session
-        // Add listener to update notification when playback state changes
-        session.player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                updateNotification(session)
+        try {
+            // Remove old listener if any
+            listener?.let { oldListener ->
+                try { session.player.removeListener(oldListener) } catch (_: Exception) {}
             }
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                updateNotification(session)
+
+            mediaSession = session
+
+            listener = object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    try { updateNotification(session) } catch (_: Exception) {}
+                }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    try { updateNotification(session) } catch (_: Exception) {}
+                }
+                override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                    try { updateNotification(session) } catch (_: Exception) {}
+                }
             }
-            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                updateNotification(session)
-            }
-        })
-        updateNotification(session)
+            session.player.addListener(listener!!)
+            updateNotification(session)
+        } catch (e: Exception) {
+            Log.e(TAG, "setMediaSession failed", e)
+        }
     }
 
     private fun updateNotification(session: MediaSession) {
-        val player = session.player
-        val mediaItem = player.currentMediaItem
-        val title = mediaItem?.mediaMetadata?.title ?: "悦音"
-        val artist = mediaItem?.mediaMetadata?.artist ?: "正在播放音乐"
-        val isPlaying = player.isPlaying
+        try {
+            val player = session.player
+            val mediaItem = player.currentMediaItem
+            val title = mediaItem?.mediaMetadata?.title ?: "悦音"
+            val artist = mediaItem?.mediaMetadata?.artist ?: "正在播放音乐"
+            val isPlaying = player.isPlaying
 
-        val openIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+            val openIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
-        // Build notification with MediaStyle for lock screen controls
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentIntent(pendingIntent)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(title)
-            .setContentText(artist)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(isPlaying)
-            .setShowWhen(false)
+            val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentIntent(pendingIntent)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(title)
+                .setContentText(artist)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOngoing(isPlaying)
+                .setShowWhen(false)
 
-        // Apply MediaStyle for lock screen controls
-        builder.setStyle(
-            MediaStyleNotificationHelper.MediaStyle(session)
-                .setShowActionsInCompactView(0, 1, 2)
-        )
+            try {
+                builder.setStyle(
+                    MediaStyleNotificationHelper.MediaStyle(session)
+                        .setShowActionsInCompactView(0, 1, 2)
+                )
+            } catch (_: Exception) {}
 
-        val notification = builder.build()
-        notificationManager?.notify(NOTIFICATION_ID, notification)
+            val notification = builder.build()
+            notificationManager?.notify(NOTIFICATION_ID, notification)
+        } catch (_: Exception) {}
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -95,27 +109,35 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        MusicPlaybackServiceHolder.service = null
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-        mediaSession = null
+        try {
+            MusicPlaybackServiceHolder.service = null
+            listener?.let { oldListener ->
+                try { mediaSession?.player?.removeListener(oldListener) } catch (_: Exception) {}
+            }
+            listener = null
+            mediaSession?.run {
+                try { player.release() } catch (_: Exception) {}
+                try { release() } catch (_: Exception) {}
+            }
+            mediaSession = null
+        } catch (_: Exception) {}
         super.onDestroy()
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "音乐播放",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "悦音播放控制"
-                setShowBadge(false)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "音乐播放",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "悦音播放控制"
+                    setShowBadge(false)
+                }
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.createNotificationChannel(channel)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
+        } catch (_: Exception) {}
     }
 }

@@ -131,22 +131,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Check if already logged in
         viewModelScope.launch {
-            combine(settings.serverUrl, settings.username, settings.password) { url, user, pass ->
-                Triple(url, user, pass)
-            }.collect { (url, user, pass) ->
-                if (url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()) {
-                    repository.configure(url, user, pass)
-                    _isLoggedIn.value = true
-                    loadHomeData()
+            try {
+                combine(settings.serverUrl, settings.username, settings.password) { url, user, pass ->
+                    Triple(url, user, pass)
+                }.collect { (url, user, pass) ->
+                    try {
+                        if (url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()) {
+                            repository.configure(url, user, pass)
+                            _isLoggedIn.value = true
+                            loadHomeData()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
         // Update progress periodically
         viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(500)
-                playerManager.updateProgress()
+                try {
+                    kotlinx.coroutines.delay(500)
+                    playerManager.updateProgress()
+                } catch (_: Exception) {}
             }
         }
     }
@@ -194,29 +204,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadHomeData() {
         viewModelScope.launch {
-            // Load newest albums
-            repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
-
-            // Load random albums
-            repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
-
-            // Load daily random songs
-            repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
-
-            // Load playlists
-            repository.getPlaylists().onSuccess { _playlists.value = it }
-
-            // Load starred songs
-            repository.getStarred().onSuccess { _starredSongs.value = it.songs }
-
-            // Load recent played songs from stored IDs
-            loadRecentPlayedSongs()
-
-            // Load server stats
-            repository.getServerStats().onSuccess { _serverStats.value = it }
-
-            // Preload all songs cache in background
-            loadAllSongsFromCacheOrServer()
+            try {
+                repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
+            } catch (_: Exception) {}
+            try {
+                repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
+            } catch (_: Exception) {}
+            try {
+                repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
+            } catch (_: Exception) {}
+            try {
+                repository.getPlaylists().onSuccess { _playlists.value = it }
+            } catch (_: Exception) {}
+            try {
+                repository.getStarred().onSuccess { _starredSongs.value = it.songs }
+            } catch (_: Exception) {}
+            try {
+                loadRecentPlayedSongs()
+            } catch (_: Exception) {}
+            try {
+                repository.getServerStats().onSuccess { _serverStats.value = it }
+            } catch (_: Exception) {}
+            try {
+                loadAllSongsFromCacheOrServer()
+            } catch (_: Exception) {}
         }
     }
 
@@ -289,30 +300,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadAlbumDetail(albumId: String) {
+        if (albumId.isBlank()) return
         viewModelScope.launch {
-            repository.getAlbum(albumId).onSuccess { _currentAlbum.value = it }
+            try {
+                repository.getAlbum(albumId).onSuccess { _currentAlbum.value = it }
+            } catch (_: Exception) {}
         }
     }
 
     fun loadArtistDetail(artistId: String) {
+        if (artistId.isBlank()) return
         viewModelScope.launch {
-            repository.getArtist(artistId).onSuccess { _currentArtist.value = it }
+            try {
+                repository.getArtist(artistId).onSuccess { _currentArtist.value = it }
+            } catch (_: Exception) {}
         }
     }
 
     fun loadPlaylistDetail(playlistId: String) {
+        if (playlistId.isBlank()) return
         viewModelScope.launch {
-            repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+            try {
+                repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+            } catch (_: Exception) {}
         }
     }
 
     fun playSong(song: Song, playlist: List<Song> = listOf(song)) {
-        playerManager.playSong(song, playlist)
+        try {
+            playerManager.playSong(song, playlist)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         viewModelScope.launch {
-            settings.addRecentPlay(song.id)
-            repository.scrobble(song.id)
-            // Refresh recent played songs
-            loadRecentPlayedSongs()
+            try {
+                settings.addRecentPlay(song.id)
+                repository.scrobble(song.id)
+                loadRecentPlayedSongs()
+            } catch (_: Exception) {}
         }
     }
 
@@ -338,7 +363,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _songsLoading.value = true
             try {
-                // Step 1: Try loading from cache first
                 val cachedJson = settings.getCachedSongs()
                 if (cachedJson.isNotBlank()) {
                     try {
@@ -347,27 +371,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if (cachedSongs.isNotEmpty()) {
                             _allSongs.value = cachedSongs
                             _songsLoading.value = false
-                            // Continue to refresh from server in background
                             refreshSongsFromServer(cachedSongs)
                             return@launch
                         }
-                    } catch (_: Exception) { }
+                    } catch (_: Exception) {}
                 }
 
-                // Step 2: No cache, load from server
-                val result = repository.getAllSongs()
-                result.onSuccess { songs ->
-                    _allSongs.value = songs
-                    // Save to cache
-                    saveSongsToCache(songs)
-                }.onFailure {
-                    // Fallback
-                    repository.getRandomSongs(500).onSuccess { songs ->
+                try {
+                    val result = repository.getAllSongs()
+                    result.onSuccess { songs ->
                         _allSongs.value = songs
                         saveSongsToCache(songs)
+                    }.onFailure {
+                        repository.getRandomSongs(500).onSuccess { songs ->
+                            _allSongs.value = songs
+                            saveSongsToCache(songs)
+                        }
                     }
-                }
-            } finally {
+                } catch (_: Exception) {}
+            } catch (_: Exception) {}
+            finally {
                 _songsLoading.value = false
             }
         }
@@ -424,32 +447,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addToPlaylist(playlistId: String, songId: String, playlistOwner: String = "") {
         viewModelScope.launch {
-            // Check if this is someone else's playlist
-            val currentUser = username.value
-            if (playlistOwner.isNotBlank() && playlistOwner != currentUser) {
-                _toastMessage.value = "不能添加歌曲到别人的歌单"
-                return@launch
-            }
-            repository.addToPlaylist(playlistId, songId).onSuccess {
-                _toastMessage.value = "已添加到歌单"
-                // Refresh playlist detail if viewing
-                repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
-            }.onFailure {
-                _toastMessage.value = "添加失败: ${it.message}"
+            try {
+                val currentUser = username.value
+                if (playlistOwner.isNotBlank() && playlistOwner != currentUser) {
+                    _toastMessage.value = "不能添加歌曲到别人的歌单"
+                    return@launch
+                }
+                repository.addToPlaylist(playlistId, songId).onSuccess {
+                    _toastMessage.value = "已添加到歌单"
+                    repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+                }.onFailure {
+                    _toastMessage.value = "添加失败: ${it.message}"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = "添加失败: ${e.message}"
             }
         }
     }
 
     fun removeFromPlaylist(playlistId: String, songIndex: Int) {
         viewModelScope.launch {
-            repository.removeFromPlaylist(playlistId, songIndex).onSuccess {
-                _toastMessage.value = "已从歌单移除"
-                // Refresh playlist detail
-                repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
-                // Also refresh playlist list
-                repository.getPlaylists().onSuccess { _playlists.value = it }
-            }.onFailure {
-                _toastMessage.value = "移除失败: ${it.message}"
+            try {
+                repository.removeFromPlaylist(playlistId, songIndex).onSuccess {
+                    _toastMessage.value = "已从歌单移除"
+                    repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+                    repository.getPlaylists().onSuccess { _playlists.value = it }
+                }.onFailure {
+                    _toastMessage.value = "移除失败: ${it.message}"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = "移除失败: ${e.message}"
             }
         }
     }
@@ -481,68 +508,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var countdownJob: kotlinx.coroutines.Job? = null
 
     fun setTimerWithCountdown(minutes: Int) {
-        // Cancel any existing timer
-        cancelTimerWithCountdown()
-        // Also set alarm as backup (works even if app is killed)
-        playerManager.setTimer(minutes)
-        _timerRemainingSeconds.value = minutes * 60L
-        countdownJob = viewModelScope.launch {
-            while (_timerRemainingSeconds.value > 0) {
-                kotlinx.coroutines.delay(1000)
-                _timerRemainingSeconds.value = (_timerRemainingSeconds.value - 1).coerceAtLeast(0)
+        try {
+            cancelTimerWithCountdown()
+            playerManager.setTimer(minutes)
+            _timerRemainingSeconds.value = minutes * 60L
+            countdownJob = viewModelScope.launch {
+                while (_timerRemainingSeconds.value > 0) {
+                    try {
+                        kotlinx.coroutines.delay(1000)
+                        _timerRemainingSeconds.value = (_timerRemainingSeconds.value - 1).coerceAtLeast(0)
+                    } catch (_: Exception) { break }
+                }
+                try { playerManager.forcePause() } catch (_: Exception) {}
             }
-            // Timer reached zero - force pause playback
-            playerManager.forcePause()
-            try {
-                playerManager.forcePause()
-            } catch (_: Exception) { }
-        }
+        } catch (_: Exception) {}
     }
 
     fun cancelTimerWithCountdown() {
-        countdownJob?.cancel()
-        countdownJob = null
-        playerManager.cancelTimer()
-        _timerRemainingSeconds.value = 0
+        try {
+            countdownJob?.cancel()
+            countdownJob = null
+            playerManager.cancelTimer()
+            _timerRemainingSeconds.value = 0
+        } catch (_: Exception) {}
     }
 
     fun syncData() {
         viewModelScope.launch {
             _syncStatus.value = "同步中..."
             try {
-                // Sync playlists
                 _syncStatus.value = "同步歌单 (1/4)..."
-                repository.getPlaylists().onSuccess { _playlists.value = it }
+                try { repository.getPlaylists().onSuccess { _playlists.value = it } } catch (_: Exception) {}
 
-                // Sync artists
                 _syncStatus.value = "同步歌手 (2/4)..."
-                repository.getArtists().onSuccess { _artists.value = it }
+                try { repository.getArtists().onSuccess { _artists.value = it } } catch (_: Exception) {}
 
-                // Sync starred
                 _syncStatus.value = "同步收藏 (3/4)..."
-                repository.getStarred().onSuccess { _starredSongs.value = it.songs }
+                try { repository.getStarred().onSuccess { _starredSongs.value = it.songs } } catch (_: Exception) {}
 
-                // Sync random songs for daily recommendations + refresh home data
                 _syncStatus.value = "同步歌曲和专辑 (4/4)..."
-                repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
-                repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
-                repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
-
-                // Refresh server stats
-                repository.getServerStats().onSuccess { _serverStats.value = it }
-
-                // Refresh recent played
-                loadRecentPlayedSongs()
-
-                // Clear songs cache to force refresh
-                settings.clearSongsCache()
+                try { repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it } } catch (_: Exception) {}
+                try { repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it } } catch (_: Exception) {}
+                try { repository.getRandomSongs(4).onSuccess { _dailySongs.value = it } } catch (_: Exception) {}
+                try { repository.getServerStats().onSuccess { _serverStats.value = it } } catch (_: Exception) {}
+                try { loadRecentPlayedSongs() } catch (_: Exception) {}
+                try { settings.clearSongsCache() } catch (_: Exception) {}
 
                 _syncStatus.value = "同步完成 ✓\n已同步: 歌单、歌手、收藏、专辑、歌曲、服务器统计"
             } catch (e: Exception) {
                 _syncStatus.value = "同步失败: ${e.message}"
             }
-            kotlinx.coroutines.delay(5000)
-            _syncStatus.value = ""
+            try {
+                kotlinx.coroutines.delay(5000)
+                _syncStatus.value = ""
+            } catch (_: Exception) {}
         }
     }
 

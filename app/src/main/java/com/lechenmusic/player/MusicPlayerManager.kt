@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -39,7 +40,6 @@ class MusicPlayerManager(private val context: Context) {
     private var repository: MusicRepository? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaSession: MediaSession? = null
-    private var playbackService: MusicPlaybackService? = null
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -78,61 +78,69 @@ class MusicPlayerManager(private val context: Context) {
         const val ACTION_STOP_PLAYBACK = "com.lechenmusic.STOP_PLAYBACK"
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
+        private const val TAG = "MusicPlayerManager"
     }
 
     fun init(repo: MusicRepository) {
         repository = repo
-        player = ExoPlayer.Builder(context)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                true // handle audio focus
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build().apply {
-                addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        _isPlaying.value = isPlaying
-                    }
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) {
-                            _duration.value = duration
+        try {
+            player = ExoPlayer.Builder(context)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .setUsage(C.USAGE_MEDIA)
+                        .build(),
+                    true
+                )
+                .setHandleAudioBecomingNoisy(true)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
+                .build().apply {
+                    addListener(object : Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            try { _isPlaying.value = isPlaying } catch (_: Exception) {}
                         }
-                    }
-                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                        updateCurrentFromPlayer()
-                    }
-                    override fun onPlayerError(error: PlaybackException) {
-                        skipNext()
-                    }
-                })
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            try {
+                                if (playbackState == Player.STATE_READY) {
+                                    _duration.value = this@apply.duration.coerceAtLeast(0)
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                            try { updateCurrentFromPlayer() } catch (_: Exception) {}
+                        }
+                        override fun onPlayerError(error: PlaybackException) {
+                            Log.e(TAG, "Player error", error)
+                            try { skipNext() } catch (_: Exception) {}
+                        }
+                    })
+                }
+
+            createNotificationChannel()
+            val p = player
+            if (p != null) {
+                mediaSession = MediaSession.Builder(context, p)
+                    .setCallback(object : MediaSession.Callback {})
+                    .build()
             }
 
-        // Create MediaSession for lock screen controls
-        createNotificationChannel()
-        mediaSession = MediaSession.Builder(context, player!!)
-            .setCallback(object : MediaSession.Callback {})
-            .build()
+            startForegroundService()
 
-        // Start foreground service and pass MediaSession
-        startForegroundService()
-
-        // Register broadcast receiver for alarm-based timer
-        alarmReceiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                if (intent?.action == ACTION_STOP_PLAYBACK) {
-                    player?.pause()
+            alarmReceiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    if (intent?.action == ACTION_STOP_PLAYBACK) {
+                        try { player?.pause() } catch (_: Exception) {}
+                    }
                 }
             }
-        }
-        val filter = IntentFilter(ACTION_STOP_PLAYBACK)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(alarmReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(alarmReceiver, filter)
+            val filter = IntentFilter(ACTION_STOP_PLAYBACK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(alarmReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(alarmReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Init failed", e)
         }
     }
 
@@ -144,203 +152,247 @@ class MusicPlayerManager(private val context: Context) {
             } else {
                 context.startService(intent)
             }
-            // Pass MediaSession to service after a short delay to ensure service is created
             scope.launch {
                 delay(500)
-                MusicPlaybackServiceHolder.service?.setMediaSession(mediaSession!!)
+                try {
+                    MusicPlaybackServiceHolder.service?.setMediaSession(mediaSession!!)
+                } catch (_: Exception) {}
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) {}
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "音乐播放",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "悦音播放控制"
-                setShowBadge(false)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "音乐播放",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "悦音播放控制"
+                    setShowBadge(false)
+                }
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                manager?.createNotificationChannel(channel)
             }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
-        }
+        } catch (_: Exception) {}
     }
 
     fun playSong(song: Song, songs: List<Song> = listOf(song)) {
-        _playlist.value = songs
-        val index = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        _currentIndex.value = index
+        try {
+            val p = player ?: return
+            val repo = repository ?: return
 
-        player?.apply {
-            val mediaItems = songs.map { s ->
-                val url = repository!!.getStreamUrl(s.id)
-                MediaItem.Builder()
-                    .setUri(url)
-                    .setMediaId(s.id)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(s.title)
-                            .setArtist(s.artist)
-                            .setAlbumTitle(s.album)
-                            .build()
-                    )
-                    .build()
+            _playlist.value = songs
+            val index = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            _currentIndex.value = index
+
+            val mediaItems = songs.mapNotNull { s ->
+                try {
+                    val url = repo.getStreamUrl(s.id)
+                    MediaItem.Builder()
+                        .setUri(url)
+                        .setMediaId(s.id)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(s.title)
+                                .setArtist(s.artist)
+                                .setAlbumTitle(s.album)
+                                .build()
+                        )
+                        .build()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to build media item for ${s.id}", e)
+                    null
+                }
             }
-            setMediaItems(mediaItems, index, 0)
-            prepare()
-            play()
+
+            if (mediaItems.isEmpty()) return
+
+            p.setMediaItems(mediaItems, index.coerceIn(0, mediaItems.lastIndex), 0)
+            p.prepare()
+            p.play()
+
+            _currentSong.value = song
+            checkStarred(song.id)
+        } catch (e: Exception) {
+            Log.e(TAG, "playSong failed", e)
         }
-        _currentSong.value = song
-        checkStarred(song.id)
     }
 
     fun togglePlayPause() {
-        player?.let {
-            if (it.isPlaying) it.pause() else it.play()
-        }
+        try {
+            val p = player ?: return
+            if (p.isPlaying) p.pause() else p.play()
+        } catch (_: Exception) {}
     }
 
     fun forcePause() {
         try {
-            player?.let {
-                if (it.isPlaying) {
-                    it.pause()
-                }
-            }
-        } catch (_: Exception) { }
+            player?.let { if (it.isPlaying) it.pause() }
+        } catch (_: Exception) {}
     }
 
     fun skipNext() {
-        player?.let {
+        try {
+            val p = player ?: return
+            val list = _playlist.value
+            if (list.isEmpty()) return
+
             if (_shuffleMode.value) {
-                val randomIndex = (_playlist.value.indices).random()
-                it.seekTo(randomIndex, 0)
-            } else if (it.hasNextMediaItem()) {
-                it.seekToNext()
+                val randomIndex = list.indices.random()
+                p.seekTo(randomIndex, 0)
+            } else if (p.hasNextMediaItem()) {
+                p.seekToNext()
             } else if (_repeatMode.value == RepeatMode.ALL) {
-                it.seekTo(0, 0)
+                p.seekTo(0, 0)
             }
+            updateCurrentFromPlayer()
+        } catch (e: Exception) {
+            Log.e(TAG, "skipNext failed", e)
         }
-        updateCurrentFromPlayer()
     }
 
     fun skipPrevious() {
-        player?.let {
-            if (it.currentPosition > 3000) {
-                it.seekTo(0)
-            } else if (it.hasPreviousMediaItem()) {
-                it.seekToPrevious()
+        try {
+            val p = player ?: return
+            if (p.currentPosition > 3000) {
+                p.seekTo(0)
+            } else if (p.hasPreviousMediaItem()) {
+                p.seekToPrevious()
             }
+            updateCurrentFromPlayer()
+        } catch (e: Exception) {
+            Log.e(TAG, "skipPrevious failed", e)
         }
-        updateCurrentFromPlayer()
     }
 
     fun seekTo(position: Long) {
-        player?.seekTo(position)
+        try { player?.seekTo(position) } catch (_: Exception) {}
     }
 
     fun seekToProgress(progress: Float) {
-        player?.let {
-            val pos = (it.duration * progress).toLong().coerceIn(0, it.duration)
-            it.seekTo(pos)
-        }
+        try {
+            val p = player ?: return
+            val pos = (p.duration * progress).toLong().coerceIn(0, p.duration.coerceAtLeast(0))
+            p.seekTo(pos)
+        } catch (_: Exception) {}
     }
 
     fun toggleShuffle() {
-        _shuffleMode.value = !_shuffleMode.value
-        player?.shuffleModeEnabled = _shuffleMode.value
+        try {
+            _shuffleMode.value = !_shuffleMode.value
+            player?.shuffleModeEnabled = _shuffleMode.value
+        } catch (_: Exception) {}
     }
 
     fun toggleRepeat() {
-        _repeatMode.value = when (_repeatMode.value) {
-            RepeatMode.OFF -> RepeatMode.ALL
-            RepeatMode.ALL -> RepeatMode.ONE
-            RepeatMode.ONE -> RepeatMode.OFF
-        }
-        player?.repeatMode = when (_repeatMode.value) {
-            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
-            RepeatMode.ONE -> Player.REPEAT_MODE_ONE
-            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
-        }
+        try {
+            _repeatMode.value = when (_repeatMode.value) {
+                RepeatMode.OFF -> RepeatMode.ALL
+                RepeatMode.ALL -> RepeatMode.ONE
+                RepeatMode.ONE -> RepeatMode.OFF
+            }
+            player?.repeatMode = when (_repeatMode.value) {
+                RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+                RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+                RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+            }
+        } catch (_: Exception) {}
     }
 
     fun toggleStar() {
         val song = _currentSong.value ?: return
         val repo = repository ?: return
         scope.launch(Dispatchers.IO) {
-            if (_isStarred.value) {
-                repo.unstar(song.id)
-            } else {
-                repo.star(song.id)
+            try {
+                if (_isStarred.value) {
+                    repo.unstar(song.id)
+                } else {
+                    repo.star(song.id)
+                }
+                _isStarred.value = !_isStarred.value
+            } catch (e: Exception) {
+                Log.e(TAG, "toggleStar failed", e)
             }
-            _isStarred.value = !_isStarred.value
         }
     }
 
     private fun checkStarred(songId: String) {
-        val song = _currentSong.value
-        _isStarred.value = song?.isStarred == true
+        try {
+            val song = _currentSong.value
+            _isStarred.value = song?.isStarred == true
+        } catch (_: Exception) {}
     }
 
     fun setTimer(minutes: Int) {
-        cancelTimer()
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(ACTION_STOP_PLAYBACK)
-        intent.setPackage(context.packageName)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val triggerTime = System.currentTimeMillis() + minutes * 60 * 1000L
-        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        try {
+            cancelTimer()
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val intent = Intent(ACTION_STOP_PLAYBACK)
+            intent.setPackage(context.packageName)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerTime = System.currentTimeMillis() + minutes * 60 * 1000L
+            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        } catch (_: Exception) {}
     }
 
     fun cancelTimer() {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(ACTION_STOP_PLAYBACK)
-        intent.setPackage(context.packageName)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.cancel(pendingIntent)
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val intent = Intent(ACTION_STOP_PLAYBACK)
+            intent.setPackage(context.packageName)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        } catch (_: Exception) {}
         timerJob?.cancel()
         timerJob = null
     }
 
     private fun updateCurrentFromPlayer() {
-        player?.let { p ->
+        try {
+            val p = player ?: return
+            val list = _playlist.value
+            if (list.isEmpty()) return
             val index = p.currentMediaItemIndex
             _currentIndex.value = index
-            if (index in _playlist.value.indices) {
-                _currentSong.value = _playlist.value[index]
-                checkStarred(_playlist.value[index].id)
+            if (index in list.indices) {
+                _currentSong.value = list[index]
+                checkStarred(list[index].id)
             }
-        }
+        } catch (_: Exception) {}
     }
 
     fun updateProgress() {
-        player?.let {
-            _currentPosition.value = it.currentPosition
-            _duration.value = it.duration.coerceAtLeast(0)
-            _progress.value = if (it.duration > 0) it.currentPosition.toFloat() / it.duration else 0f
-        }
+        try {
+            val p = player ?: return
+            _currentPosition.value = p.currentPosition.coerceAtLeast(0)
+            _duration.value = p.duration.coerceAtLeast(0)
+            _progress.value = if (p.duration > 0) (p.currentPosition.toFloat() / p.duration).coerceIn(0f, 1f) else 0f
+        } catch (_: Exception) {}
     }
 
     fun release() {
-        alarmReceiver?.let {
-            try { context.unregisterReceiver(it) } catch (_: Exception) { }
-        }
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-        mediaSession = null
-        player = null
         try {
-            val intent = Intent(context, MusicPlaybackService::class.java)
-            context.stopService(intent)
-        } catch (_: Exception) { }
+            alarmReceiver?.let {
+                try { context.unregisterReceiver(it) } catch (_: Exception) {}
+            }
+            mediaSession?.run {
+                try { player.release() } catch (_: Exception) {}
+                try { release() } catch (_: Exception) {}
+            }
+            mediaSession = null
+            player = null
+            try {
+                val intent = Intent(context, MusicPlaybackService::class.java)
+                context.stopService(intent)
+            } catch (_: Exception) {}
+        } catch (_: Exception) {}
     }
 }
