@@ -54,3 +54,31 @@
 -keep class com.lechenmusic.data.api.SubsonicApi { *; }
 -keep class com.lechenmusic.data.api.ApiClient { *; }
 -keep class com.lechenmusic.data.api.SafeJsonConverterFactory { *; }
+
+# Compose - prevent R8 from stripping compose internals that cause crashes
+-keep class androidx.compose.** { *; }
+-keepclassmembers class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# Keep Kotlin serialization and metadata
+-keepattributes RuntimeVisibleAnnotations
+-keep class kotlin.Metadata { *; }
+-keepclassmembers class kotlin.Metadata {
+    public <methods>;
+}
+
+# Keep all Kotlin classes (prevents various Compose crashes in release)
+-keep class kotlin.** { *; }
+-keepclassmembers class kotlin.** { *; }
+-keep class kotlin.reflect.** { *; }
+
+# Prevent stripping of Compose Foundation text input classes
+-keep class androidx.compose.foundation.text.** { *; }
+-keep class androidx.compose.ui.text.** { *; }
+-keep class androidx.compose.ui.text.input.** { *; }
+
+# Keep AndroidX core classes
+-keep class androidx.core.** { *; }
+-keep class androidx.lifecycle.** { *; }
+-keep class androidx.activity.** { *; }
+-keep class androidx.navigation.** { *; }
