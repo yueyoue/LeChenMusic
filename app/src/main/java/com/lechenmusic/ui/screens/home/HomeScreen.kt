@@ -97,26 +97,36 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(28.dp))
                 SectionHeader("🎯 每日推荐", "换一批 ↻") { viewModel.refreshDailySongs() }
             }
+            items(dailySongs) { song ->
+                SongItem(
+                    song = song,
+                    serverUrl = serverUrl,
+                    username = username,
+                    password = password,
+                    onClick = { onSongClick(song, dailySongs) }
+                )
+            }
+        }
+
+        // 随机专辑
+        if (randomAlbums.isNotEmpty()) {
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Spacer(modifier = Modifier.height(28.dp))
+                SectionHeader("🎲 随机专辑", "换一批 ↻") { viewModel.refreshRandomAlbums() }
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 16.dp)
                 ) {
-                    dailySongs.take(4).forEachIndexed { index, song ->
-                        val colors = listOf(
-                            listOf(Color(0xFFFF4757), Color(0xFFFF6B81)),
-                            listOf(Color(0xFF5352ED), Color(0xFF7C7CF8)),
-                            listOf(Color(0xFF2ED573), Color(0xFF7BED9F)),
-                            listOf(Color(0xFFFFA502), Color(0xFFFFD43B))
-                        )
-                        DailyCard(
-                            song = song,
-                            index = index + 1,
-                            gradient = colors[index % 4],
-                            onClick = { onSongClick(song, dailySongs) },
-                            modifier = Modifier.weight(1f)
+                    items(randomAlbums) { album ->
+                        AlbumCard(
+                            album = album,
+                            serverUrl = serverUrl,
+                            username = username,
+                            password = password,
+                            onClick = { onAlbumClick(album.id) }
                         )
                     }
                 }
@@ -146,31 +156,6 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
-            }
-        }
-
-        // 随机专辑
-        if (randomAlbums.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(28.dp))
-                SectionHeader("🎲 随机专辑", "换一批 ↻") { viewModel.refreshRandomAlbums() }
-            }
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(top = 16.dp)
-                ) {
-                    items(randomAlbums) { album ->
-                        AlbumCard(
-                            album = album,
-                            serverUrl = serverUrl,
-                            username = username,
-                            password = password,
-                            onClick = { onAlbumClick(album.id) }
-                        )
-                    }
-                }
             }
         }
 
@@ -222,43 +207,6 @@ fun HomeScreen(
                 items(radioStations) { (name, desc, color) ->
                     RadioCard(name = name, desc = desc, color = color, onClick = { })
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DailyCard(
-    song: Song,
-    index: Int,
-    gradient: List<Color>,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .height(100.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier.background(Brush.linearGradient(gradient))
-        ) {
-            Text(
-                text = "%02d".format(index),
-                fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color.White.copy(alpha = 0.3f),
-                modifier = Modifier.padding(10.dp)
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(14.dp)
-            ) {
-                Text(song.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                Text(song.artist, fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
             }
         }
     }

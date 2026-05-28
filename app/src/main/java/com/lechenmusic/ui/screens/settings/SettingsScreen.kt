@@ -35,6 +35,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     var showCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     var musicCacheSize by remember { mutableStateOf("计算中...") }
     var otherDataSize by remember { mutableStateOf("计算中...") }
 
@@ -157,10 +158,39 @@ fun SettingsScreen(
             SectionTitle("关于")
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column {
-                    SettingsClickItem(icon = Icons.Default.Info, iconBg = Color(0xFF2ED573).copy(alpha = 0.15f), label = "关于悦音", value = "v1.0.0", onClick = { })
+                    SettingsClickItem(icon = Icons.Default.Info, iconBg = Color(0xFF2ED573).copy(alpha = 0.15f), label = "关于悦音", value = "", onClick = { showAboutDialog = true })
                 }
             }
         }
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text("关于悦音", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("官网", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("http://yy.tthsdd.top", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    HorizontalDivider()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("邮箱", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("10711306@qq.com", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAboutDialog = false }) { Text("确定") } }
+        )
     }
 
     if (showCacheDialog) {
