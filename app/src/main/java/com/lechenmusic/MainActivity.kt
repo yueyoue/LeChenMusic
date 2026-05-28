@@ -13,8 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -38,21 +41,135 @@ import com.lechenmusic.ui.screens.search.SearchScreen
 import com.lechenmusic.ui.screens.settings.SettingsScreen
 import com.lechenmusic.ui.screens.songs.AllSongsScreen
 import com.lechenmusic.ui.theme.LeChenMusicTheme
+import com.lechenmusic.update.UpdateChecker
+import com.lechenmusic.update.UpdateInfo
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    // 更新状态，供 Compose 观察
+    private val updateInfo = mutableStateOf<UpdateInfo?>(null)
+    private val updateStatus = mutableStateOf("") // 下载进度提示
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 启动时检查更新
+        checkForUpdate()
+
         setContent {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             val isDark = themeMode == "dark"
 
             LeChenMusicTheme(darkTheme = isDark) {
+                // 更新弹窗
+                UpdateDialog(
+                    updateInfo = updateInfo.value,
+                    updateStatus = updateStatus.value,
+                    onDismiss = { updateInfo.value = null },
+                    onUpdate = { info ->
+                        lifecycleScope.launch {
+                            updateStatus.value = "正在下载..."
+                            val result = UpdateChecker.downloadAndInstall(
+                                context = this@MainActivity,
+                                apkUrl = info.apkUrl,
+                                onProgress = { updateStatus.value = it }
+                            )
+                            if (result == null) {
+                                updateStatus.value = "下载失败，请手动下载"
+                            }
+                        }
+                    }
+                )
+
                 LeChenMusicApp(viewModel)
             }
         }
     }
+
+    private fun checkForUpdate() {
+        lifecycleScope.launch {
+            try {
+                val currentVersionCode = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(packageName, 0).versionCode
+                }
+                val info = UpdateChecker.check(currentVersionCode)
+                if (info != null) {
+                    updateInfo.value = info
+                }
+            } catch (_: Exception) {
+                // 静默失败，不影响正常使用
+            }
+        }
+    }
+}
+
+/**
+ * 更新弹窗
+ */
+@Composable
+fun UpdateDialog(
+    updateInfo: UpdateInfo?,
+    updateStatus: String,
+    onDismiss: () -> Unit,
+    onUpdate: (UpdateInfo) -> Unit
+) {
+    if (updateInfo == null) return
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.SystemUpdate,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+        },
+        title = {
+            Text(
+                "发现新版本 v${updateInfo.versionName}",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                if (updateInfo.updateLog.isNotEmpty()) {
+                    Text(
+                        updateInfo.updateLog,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (updateStatus.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        updateStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onUpdate(updateInfo) },
+                enabled = updateStatus.isEmpty() || updateStatus == "下载失败，请手动下载"
+            ) {
+                Text("立即更新")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("稍后提醒")
+            }
+        }
+    )
 }
 
 @Composable
@@ -112,7 +229,6 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                                             selected = currentRoute == tab.route,
                                             onClick = {
                                                 if (currentRoute == tab.route) {
-                                                    // Already on this tab, do nothing
                                                     return@NavigationBarItem
                                                 }
                                                 navController.navigate(tab.route) {
@@ -122,7 +238,6 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                                                     launchSingleTop = true
                                                     restoreState = false
                                                 }
-                                                // Refresh home data when navigating to home
                                                 if (tab.route == Screen.Home.route) {
                                                     viewModel.loadHomeData()
                                                 }
