@@ -93,6 +93,9 @@ dependencies {
     implementation("androidx.media3:media3-session:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
 
+    // Media compat for notification MediaStyle
+    implementation("androidx.media:media:1.7.0")
+
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 

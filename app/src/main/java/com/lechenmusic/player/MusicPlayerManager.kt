@@ -13,6 +13,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -247,7 +248,7 @@ class MusicPlayerManager(private val context: Context) {
                 .setLargeIcon(albumArt)
                 // MediaStyle with MediaSession token for lock screen controls
                 .setStyle(
-                    androidx.media3.session.MediaStyle()
+                    MediaStyle()
                         .setMediaSession(mediaSession?.token)
                         .setShowActionsInCompactView(0, 1, 2)
                 )
