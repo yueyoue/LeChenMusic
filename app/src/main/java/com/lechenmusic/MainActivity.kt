@@ -13,13 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -41,83 +38,40 @@ import com.lechenmusic.ui.screens.search.SearchScreen
 import com.lechenmusic.ui.screens.settings.SettingsScreen
 import com.lechenmusic.ui.screens.songs.AllSongsScreen
 import com.lechenmusic.ui.theme.LeChenMusicTheme
-import com.lechenmusic.update.UpdateChecker
 import com.lechenmusic.update.UpdateInfo
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
-    // 更新状态，供 Compose 观察
-    private val updateInfo = mutableStateOf<UpdateInfo?>(null)
-    private val updateStatus = mutableStateOf("") // 下载进度提示
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // 启动时检查更新
-        checkForUpdate()
-
         setContent {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             val isDark = themeMode == "dark"
 
             LeChenMusicTheme(darkTheme = isDark) {
-                // 更新弹窗
+                // 更新弹窗（启动时自动检查 + 设置页手动检查 都会触发）
+                val updateInfo by viewModel.updateInfo.collectAsState()
+                val updateStatus by viewModel.updateStatus.collectAsState()
                 UpdateDialog(
-                    updateInfo = updateInfo.value,
-                    updateStatus = updateStatus.value,
-                    onDismiss = { updateInfo.value = null },
-                    onUpdate = { info ->
-                        lifecycleScope.launch {
-                            updateStatus.value = "正在下载..."
-                            val result = UpdateChecker.downloadAndInstall(
-                                context = this@MainActivity,
-                                apkUrl = info.apkUrl,
-                                onProgress = { updateStatus.value = it }
-                            )
-                            if (result == null) {
-                                updateStatus.value = "下载失败，请手动下载"
-                            }
-                        }
-                    }
+                    updateInfo = updateInfo,
+                    updateStatus = updateStatus,
+                    onDismiss = { viewModel.dismissUpdate() },
+                    onUpdate = { viewModel.downloadUpdate() }
                 )
 
                 LeChenMusicApp(viewModel)
             }
         }
     }
-
-    private fun checkForUpdate() {
-        lifecycleScope.launch {
-            try {
-                val currentVersionCode = if (android.os.Build.VERSION.SDK_INT >= 28) {
-                    packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
-                } else {
-                    @Suppress("DEPRECATION")
-                    packageManager.getPackageInfo(packageName, 0).versionCode
-                }
-                val info = UpdateChecker.check(currentVersionCode)
-                if (info != null) {
-                    updateInfo.value = info
-                }
-            } catch (_: Exception) {
-                // 静默失败，不影响正常使用
-            }
-        }
-    }
 }
 
-/**
- * 更新弹窗
- */
 @Composable
 fun UpdateDialog(
     updateInfo: UpdateInfo?,
     updateStatus: String,
     onDismiss: () -> Unit,
-    onUpdate: (UpdateInfo) -> Unit
+    onUpdate: () -> Unit
 ) {
     if (updateInfo == null) return
 
@@ -148,6 +102,10 @@ fun UpdateDialog(
                 }
                 if (updateStatus.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         updateStatus,
                         style = MaterialTheme.typography.bodySmall,
@@ -158,7 +116,7 @@ fun UpdateDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onUpdate(updateInfo) },
+                onClick = onUpdate,
                 enabled = updateStatus.isEmpty() || updateStatus == "下载失败，请手动下载"
             ) {
                 Text("立即更新")
@@ -184,7 +142,6 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Bottom tab items
     data class BottomTab(val route: String, val label: String, val icon: ImageVector)
     val tabs = listOf(
         BottomTab(Screen.Home.route, "首页", Icons.Default.Home),
@@ -196,6 +153,13 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
     )
 
     val showBottomBar = currentRoute in tabs.map { it.route }
+
+    // 登录成功后自动检查更新（静默）
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) {
+            viewModel.checkForUpdate(silent = true)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (!isLoggedIn) {
@@ -209,7 +173,6 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                         exit = slideOutVertically(targetOffsetY = { it })
                     ) {
                         Column {
-                            // Mini Player
                             if (currentSong != null && currentRoute != Screen.Player.route) {
                                 MiniPlayer(
                                     playerManager = viewModel.playerManager,
@@ -219,7 +182,6 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                                     onClick = { navController.navigate(Screen.Player.route) }
                                 )
                             }
-                            // Bottom Tab Bar
                             if (showBottomBar) {
                                 NavigationBar {
                                     tabs.forEach { tab ->
@@ -228,13 +190,9 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                                             label = { Text(tab.label, fontSize = 10.sp) },
                                             selected = currentRoute == tab.route,
                                             onClick = {
-                                                if (currentRoute == tab.route) {
-                                                    return@NavigationBarItem
-                                                }
+                                                if (currentRoute == tab.route) return@NavigationBarItem
                                                 navController.navigate(tab.route) {
-                                                    popUpTo(Screen.Home.route) {
-                                                        saveState = false
-                                                    }
+                                                    popUpTo(Screen.Home.route) { saveState = false }
                                                     launchSingleTop = true
                                                     restoreState = false
                                                 }
