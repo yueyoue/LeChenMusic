@@ -13,7 +13,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -246,12 +245,6 @@ class MusicPlayerManager(private val context: Context) {
                 .setShowWhen(false)
                 // Album art as large icon
                 .setLargeIcon(albumArt)
-                // MediaStyle with MediaSession token for lock screen controls
-                .setStyle(
-                    MediaStyle()
-                        .setMediaSession(mediaSession?.token)
-                        .setShowActionsInCompactView(0, 1, 2)
-                )
                 // Action buttons: prev, play/pause, next, favorite
                 .addAction(R.drawable.ic_notif_prev, "上一曲", prevPending)
                 .addAction(playPauseIcon, if (_isPlaying.value) "暂停" else "播放", playPausePending)
