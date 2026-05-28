@@ -557,36 +557,52 @@ fun PlayerScreen(
     if (showPlaylistSheet) {
         ModalBottomSheet(onDismissRequest = { showPlaylistSheet = false }) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("播放列表", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("播放列表", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "共 ${playlist.size} 首",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
-                playlist.forEachIndexed { index, s ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                playerManager.playSong(s, playlist)
-                                showPlaylistSheet = false
-                            }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "${index + 1}",
-                            fontSize = 13.sp,
-                            color = if (index == currentIndex) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(30.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    itemsIndexed(playlist) { index, s ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    playerManager.playSong(s, playlist)
+                                    showPlaylistSheet = false
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                s.title,
-                                fontSize = 14.sp,
+                                "${index + 1}",
+                                fontSize = 13.sp,
                                 color = if (index == currentIndex) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (index == currentIndex) FontWeight.SemiBold else FontWeight.Normal
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(30.dp),
+                                textAlign = TextAlign.Center
                             )
-                            Text(s.artist, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(
+                                    s.title,
+                                    fontSize = 14.sp,
+                                    color = if (index == currentIndex) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (index == currentIndex) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                                Text(s.artist, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
