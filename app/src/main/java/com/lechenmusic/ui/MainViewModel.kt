@@ -12,8 +12,6 @@ import com.lechenmusic.player.MusicPlayerManager
 import com.lechenmusic.player.RepeatMode
 import com.lechenmusic.update.UpdateChecker
 import com.lechenmusic.update.UpdateInfo
-import com.lechenmusic.update.UpdateChecker
-import com.lechenmusic.update.UpdateInfo
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.*
@@ -112,70 +110,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCheckingUpdate = MutableStateFlow(false)
     val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
 
-    // App Update
-    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
-    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
-
-    private val _updateStatus = MutableStateFlow("")
-    val updateStatus: StateFlow<String> = _updateStatus.asStateFlow()
-
-    private val _isCheckingUpdate = MutableStateFlow(false)
-    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
-
     // Toast message for user feedback
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
     fun clearToast() {
         _toastMessage.value = null
-    }
-
-    fun checkForUpdate(silent: Boolean = true) {
-        viewModelScope.launch {
-            _isCheckingUpdate.value = true
-            if (!silent) _updateStatus.value = "检查中..."
-            try {
-                val context = getApplication<Application>()
-                val currentVersionCode = if (android.os.Build.VERSION.SDK_INT >= 28) {
-                    context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.packageManager.getPackageInfo(context.packageName, 0).versionCode
-                }
-                val info = UpdateChecker.check(currentVersionCode)
-                if (info != null) {
-                    _updateInfo.value = info
-                } else if (!silent) {
-                    _toastMessage.value = "当前已是最新版本 ✓"
-                }
-            } catch (e: Exception) {
-                if (!silent) _toastMessage.value = "检查更新失败: ${e.message}"
-            } finally {
-                _isCheckingUpdate.value = false
-                if (!silent) _updateStatus.value = ""
-            }
-        }
-    }
-
-    fun downloadUpdate() {
-        val info = _updateInfo.value ?: return
-        viewModelScope.launch {
-            _updateStatus.value = "正在下载..."
-            val context = getApplication<Application>()
-            val result = UpdateChecker.downloadAndInstall(
-                context = context,
-                apkUrl = info.apkUrl,
-                onProgress = { _updateStatus.value = it }
-            )
-            if (result == null) {
-                _updateStatus.value = "下载失败，请手动下载"
-            }
-        }
-    }
-
-    fun dismissUpdate() {
-        _updateInfo.value = null
-        _updateStatus.value = ""
     }
 
     /**
