@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import com.lechenmusic.ui.MainViewModel
+import com.lechenmusic.update.UpdateInfo
 
 @Composable
 fun SettingsScreen(
@@ -225,6 +226,35 @@ fun SettingsScreen(
                     ) {
                         Text("切换服务器", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                     }
+                }
+            }
+        }
+
+        // 检查更新
+        item {
+            SectionTitle("版本更新")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    val updateInfo by viewModel.updateInfo.collectAsState()
+                    val updateStatus by viewModel.updateStatus.collectAsState()
+                    val isChecking by viewModel.isCheckingUpdate.collectAsState()
+
+                    SettingsClickItem(
+                        icon = Icons.Default.SystemUpdate,
+                        iconBg = Color(0xFF1E90FF).copy(alpha = 0.15f),
+                        label = "检查更新",
+                        value = if (isChecking) "检查中..."
+                                else if (updateInfo != null) "有新版本 v${updateInfo!!.versionName}"
+                                else if (updateStatus.isNotEmpty()) updateStatus
+                                else "当前 v${getCurrentVersionName(context)}",
+                        onClick = { viewModel.checkForUpdate(silent = false) }
+                    )
                 }
             }
         }
@@ -437,5 +467,13 @@ private fun clearCache(context: Context, dirName: String) {
     if (dir.exists()) {
         dir.deleteRecursively()
         dir.mkdirs()
+    }
+}
+
+private fun getCurrentVersionName(context: Context): String {
+    return try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+    } catch (_: Exception) {
+        "1.0.0"
     }
 }
