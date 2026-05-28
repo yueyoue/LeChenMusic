@@ -22,6 +22,7 @@ class SettingsRepository(private val context: Context) {
         val CACHE_SIZE = intPreferencesKey("cache_size_gb")
         val RECENT_PLAY_IDS = stringPreferencesKey("recent_play_ids")
         val CACHED_ALL_SONGS_JSON = stringPreferencesKey("cached_all_songs_json")
+        val CACHED_RECENT_SONGS_JSON = stringPreferencesKey("cached_recent_songs_json")
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { it[SERVER_URL] ?: "" }
@@ -75,5 +76,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun saveCachedAllSongsJson(json: String) {
         context.dataStore.edit { it[CACHED_ALL_SONGS_JSON] = json }
+    }
+
+    val cachedRecentSongsJson: Flow<String> = context.dataStore.data.map { it[CACHED_RECENT_SONGS_JSON] ?: "" }
+
+    suspend fun saveCachedRecentSongsJson(json: String) {
+        context.dataStore.edit { it[CACHED_RECENT_SONGS_JSON] = json }
     }
 }

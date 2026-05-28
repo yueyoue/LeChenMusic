@@ -111,12 +111,20 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                                             label = { Text(tab.label, fontSize = 10.sp) },
                                             selected = currentRoute == tab.route,
                                             onClick = {
+                                                if (currentRoute == tab.route) {
+                                                    // Already on this tab, do nothing
+                                                    return@NavigationBarItem
+                                                }
                                                 navController.navigate(tab.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        saveState = true
+                                                    popUpTo(Screen.Home.route) {
+                                                        saveState = false
                                                     }
                                                     launchSingleTop = true
-                                                    restoreState = true
+                                                    restoreState = false
+                                                }
+                                                // Refresh home data when navigating to home
+                                                if (tab.route == Screen.Home.route) {
+                                                    viewModel.loadHomeData()
                                                 }
                                             }
                                         )

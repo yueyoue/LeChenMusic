@@ -144,6 +144,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Register callback for auto-advance (lock screen / background playback)
+        playerManager.onSongAutoAdvanced = { song ->
+            viewModelScope.launch {
+                settings.addRecentPlay(song.id)
+                // Refresh recent played songs list
+                loadRecentPlayedSongs()
+            }
+        }
+
         // Update progress periodically
         viewModelScope.launch {
             while (true) {
@@ -220,12 +229,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadRecentPlayedSongs() {
+        // Try cached song objects first (most reliable)
+        try {
+            val cachedJson = settings.cachedRecentSongsJson.first()
+            if (cachedJson.isNotBlank()) {
+                val type = object : TypeToken<List<Song>>() {}.type
+                val cachedSongs: List<Song> = Gson().fromJson(cachedJson, type) ?: emptyList()
+                if (cachedSongs.isNotEmpty()) {
+                    _recentPlayedSongs.value = cachedSongs.take(20)
+                    return
+                }
+            }
+        } catch (_: Exception) { }
+
+        // Fallback: search through albums by IDs
         val idsStr = settings.recentPlayIds.first()
         if (idsStr.isBlank()) return
         val ids = idsStr.split(",").filter { it.isNotEmpty() }
         if (ids.isEmpty()) return
         val recentSongs = mutableListOf<Song>()
-        // Search through multiple album sources to find the songs
         val albumSources = mutableListOf<List<Album>>()
         repository.getRecentAlbums(20).onSuccess { albumSources.add(it) }
         repository.getNewestAlbums(20).onSuccess { albumSources.add(it) }
@@ -243,10 +265,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             if (recentSongs.size >= ids.size) break
         }
-        // Sort by recent play order
         val sorted = ids.mapNotNull { id -> recentSongs.find { it.id == id } }
         if (sorted.isNotEmpty()) {
             _recentPlayedSongs.value = sorted
+            // Save to cache for future fast loading
+            try {
+                settings.saveCachedRecentSongsJson(Gson().toJson(sorted.take(50)))
+            } catch (_: Exception) { }
         }
     }
 
@@ -310,9 +335,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settings.addRecentPlay(song.id)
             repository.scrobble(song.id)
+            // Cache the song object for recent plays
+            addSongToRecentCache(song)
             // Refresh recent played songs
             loadRecentPlayedSongs()
         }
+    }
+
+    private suspend fun addSongToRecentCache(song: Song) {
+        try {
+            val cachedJson = settings.cachedRecentSongsJson.first()
+            val type = object : TypeToken<List<Song>>() {}.type
+            val existing: List<Song> = if (cachedJson.isNotBlank()) {
+                Gson().fromJson(cachedJson, type) ?: emptyList()
+            } else emptyList()
+            val updated = listOf(song) + existing.filter { it.id != song.id }
+            settings.saveCachedRecentSongsJson(Gson().toJson(updated.take(50)))
+        } catch (_: Exception) { }
     }
 
     fun refreshRandomAlbums() {

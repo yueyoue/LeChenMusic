@@ -81,6 +81,9 @@ class MusicPlayerManager(private val context: Context) {
     private var timerJob: kotlinx.coroutines.Job? = null
     private var alarmReceiver: BroadcastReceiver? = null
 
+    // Callback for when song auto-advances (for recent play tracking)
+    var onSongAutoAdvanced: ((Song) -> Unit)? = null
+
     companion object {
         const val ACTION_STOP_PLAYBACK = "com.lechenmusic.STOP_PLAYBACK"
         const val ACTION_TOGGLE_FAVORITE = "com.lechenmusic.TOGGLE_FAVORITE"
@@ -113,9 +116,26 @@ class MusicPlayerManager(private val context: Context) {
                         if (playbackState == Player.STATE_READY) {
                             _duration.value = duration
                         }
+                        // When a song finishes and next starts, ensure notification is updated
+                        if (playbackState == Player.STATE_READY && _isPlaying.value) {
+                            updateNotification()
+                        }
                     }
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                         updateCurrentFromPlayer()
+                        // Update notification immediately when song changes
+                        updateNotification()
+                        // Scrobble the new song and record in recent plays
+                        val song = _currentSong.value
+                        if (song != null) {
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    repository?.scrobble(song.id)
+                                } catch (_: Exception) {}
+                            }
+                            // Notify listener for recent play tracking
+                            onSongAutoAdvanced?.invoke(song)
+                        }
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         skipNext()
@@ -126,7 +146,10 @@ class MusicPlayerManager(private val context: Context) {
         // Create MediaSession for lock screen controls
         createNotificationChannel()
         mediaSession = MediaSession.Builder(context, player!!)
-            .setCallback(object : MediaSession.Callback {})
+            .setCallback(object : MediaSession.Callback {
+                // MediaSession callbacks are handled by ExoPlayer automatically
+                // because we pass the player directly to MediaSession.Builder
+            })
             .build()
 
         // Create MediaSessionCompat for notification MediaStyle
@@ -211,7 +234,7 @@ class MusicPlayerManager(private val context: Context) {
         val song = _currentSong.value ?: return
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Update MediaSessionCompat metadata
+        // Update MediaSession metadata (for lock screen display)
         val metadataBuilder = MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
@@ -219,18 +242,19 @@ class MusicPlayerManager(private val context: Context) {
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
         mediaSessionCompat?.setMetadata(metadataBuilder.build())
 
-        // Update playback state
+        // Update playback state with current position (critical for lock screen progress)
         val stateBuilder = PlaybackStateCompat.Builder()
             .setActions(
                 PlaybackStateCompat.ACTION_PLAY or
                 PlaybackStateCompat.ACTION_PAUSE or
                 PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
                 PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                PlaybackStateCompat.ACTION_PLAY_PAUSE
+                PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                PlaybackStateCompat.ACTION_SET_RATING
             )
             .setState(
                 if (_isPlaying.value) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
-                _currentPosition.value,
+                player?.currentPosition ?: _currentPosition.value,
                 1.0f
             )
         mediaSessionCompat?.setPlaybackState(stateBuilder.build())
