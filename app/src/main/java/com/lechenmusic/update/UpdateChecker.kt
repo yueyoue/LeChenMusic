@@ -1,15 +1,10 @@
 package com.lechenmusic.update
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.net.Uri
 import android.os.Environment
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
@@ -17,7 +12,6 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
 
 /**
  * 服务器端 version.json 格式示例:
@@ -83,7 +77,7 @@ object UpdateChecker {
     }
 
     /**
-     * 下载 APK 并触发安装
+     * 下载 APK 并触发安装（使用 OkHttp，更稳定）
      * @return 下载的文件路径，失败返回 null
      */
     suspend fun downloadAndInstall(
@@ -93,74 +87,63 @@ object UpdateChecker {
     ): File? {
         return withContext(Dispatchers.IO) {
             try {
-                // 清理旧文件
                 val apkFile = File(
                     context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
                     "LeChenMusic-update.apk"
                 )
                 if (apkFile.exists()) apkFile.delete()
 
-                onProgress?.invoke("正在下载...")
+                withContext(Dispatchers.Main) { onProgress?.invoke("正在下载...") }
 
-                // 使用 DownloadManager 下载
-                val request = DownloadManager.Request(Uri.parse(apkUrl))
-                    .setTitle("LeChenMusic 更新")
-                    .setDescription("正在下载新版本...")
-                    .setDestinationUri(Uri.fromFile(apkFile))
-                    .setNotificationVisibility(
-                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-                    )
-                    .setAllowedOverMetered(true)
+                val downloadClient = OkHttpClient.Builder()
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .build()
 
-                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val downloadId = dm.enqueue(request)
+                val request = Request.Builder()
+                    .url(apkUrl)
+                    .build()
 
-                // 等待下载完成
-                val success = suspendCancellableCoroutine<Boolean> { cont ->
-                    val receiver = object : BroadcastReceiver() {
-                        override fun onReceive(ctx: Context, intent: Intent) {
-                            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                            if (id == downloadId) {
-                                context.unregisterReceiver(this)
+                val response = downloadClient.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    withContext(Dispatchers.Main) { onProgress?.invoke("下载失败 (${response.code})") }
+                    return@withContext null
+                }
 
-                                // 检查下载状态
-                                val query = DownloadManager.Query().setFilterById(downloadId)
-                                val cursor = dm.query(query)
-                                if (cursor != null && cursor.moveToFirst()) {
-                                    val status = cursor.getInt(
-                                        cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
-                                    )
-                                    cursor.close()
-                                    cont.resume(status == DownloadManager.STATUS_SUCCESSFUL)
-                                } else {
-                                    cursor?.close()
-                                    cont.resume(false)
+                val body = response.body ?: return@withContext null
+                val totalBytes = body.contentLength()
+                var downloadedBytes = 0L
+
+                body.byteStream().use { input ->
+                    apkFile.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            downloadedBytes += bytesRead
+                            if (totalBytes > 0) {
+                                val progress = (downloadedBytes * 100 / totalBytes).toInt()
+                                withContext(Dispatchers.Main) {
+                                    onProgress?.invoke("正在下载... $progress%")
                                 }
                             }
                         }
                     }
-
-                    context.registerReceiver(
-                        receiver,
-                        IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-                    )
-
-                    cont.invokeOnCancellation {
-                        try {
-                            context.unregisterReceiver(receiver)
-                        } catch (_: Exception) {}
-                    }
                 }
 
-                if (success && apkFile.exists()) {
-                    onProgress?.invoke("下载完成，正在安装...")
+                if (apkFile.exists() && apkFile.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        onProgress?.invoke("下载完成，正在安装...")
+                    }
                     installApk(context, apkFile)
                     apkFile
                 } else {
+                    withContext(Dispatchers.Main) { onProgress?.invoke("下载失败，文件为空") }
                     null
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                withContext(Dispatchers.Main) { onProgress?.invoke("下载失败: ${e.message}") }
                 null
             }
         }

@@ -36,6 +36,14 @@ fun SettingsScreen(
     var showCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val updateInfo by viewModel.updateInfo.collectAsState()
+    val updateStatus by viewModel.updateStatus.collectAsState()
+
+    // 检查到更新时自动弹窗
+    LaunchedEffect(updateInfo) {
+        if (updateInfo != null) showUpdateDialog = true
+    }
     var musicCacheSize by remember { mutableStateOf("计算中...") }
     var otherDataSize by remember { mutableStateOf("计算中...") }
 
@@ -137,8 +145,6 @@ fun SettingsScreen(
             SectionTitle("版本更新")
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column {
-                    val updateInfo by viewModel.updateInfo.collectAsState()
-                    val updateStatus by viewModel.updateStatus.collectAsState()
                     val isChecking by viewModel.isCheckingUpdate.collectAsState()
                     SettingsClickItem(
                         icon = Icons.Default.Refresh,
@@ -190,6 +196,33 @@ fun SettingsScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showAboutDialog = false }) { Text("确定") } }
+        )
+    }
+
+    // 更新弹窗
+    if (showUpdateDialog && updateInfo != null) {
+        val info = updateInfo!!
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text("发现新版本 v${info.versionName}", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("更新内容：", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(info.updateLog, fontSize = 14.sp)
+                    if (updateStatus.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(updateStatus, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.downloadUpdate() }) {
+                    Text("立即更新", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) { Text("稍后再说") }
+            }
         )
     }
 
