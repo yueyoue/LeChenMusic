@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import com.lechenmusic.ui.MainViewModel
 import com.lechenmusic.update.UpdateInfo
-import com.lechenmusic.update.UpdateInfo
 
 @Composable
 fun SettingsScreen(
@@ -247,7 +246,7 @@ fun SettingsScreen(
                     val isChecking by viewModel.isCheckingUpdate.collectAsState()
 
                     SettingsClickItem(
-                        icon = Icons.Default.SystemUpdate,
+                        icon = Icons.Default.Download,
                         iconBg = Color(0xFF1E90FF).copy(alpha = 0.15f),
                         label = "检查更新",
                         value = if (isChecking) "检查中..."
@@ -276,7 +275,7 @@ fun SettingsScreen(
                     val isChecking by viewModel.isCheckingUpdate.collectAsState()
 
                     SettingsClickItem(
-                        icon = Icons.Default.SystemUpdate,
+                        icon = Icons.Default.Download,
                         iconBg = Color(0xFF1E90FF).copy(alpha = 0.15f),
                         label = "检查更新",
                         value = if (isChecking) "检查中..."
