@@ -1,7 +1,6 @@
 package com.lechenmusic.player
 
 import android.app.AlarmManager
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,7 +11,11 @@ import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -43,6 +46,7 @@ class MusicPlayerManager(private val context: Context) {
     private var repository: MusicRepository? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaSession: MediaSession? = null
+    private var mediaSessionCompat: MediaSessionCompat? = null
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -125,6 +129,18 @@ class MusicPlayerManager(private val context: Context) {
             .setCallback(object : MediaSession.Callback {})
             .build()
 
+        // Create MediaSessionCompat for notification MediaStyle
+        mediaSessionCompat = MediaSessionCompat(context, "LeChenMusicSession").apply {
+            isActive = true
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() { togglePlayPause() }
+                override fun onPause() { togglePlayPause() }
+                override fun onSkipToNext() { skipNext() }
+                override fun onSkipToPrevious() { skipPrevious() }
+                override fun onStop() { forcePause() }
+            })
+        }
+
         // Share MediaSession with the service
         MusicPlaybackService.sharedMediaSession = mediaSession
 
@@ -195,6 +211,30 @@ class MusicPlayerManager(private val context: Context) {
         val song = _currentSong.value ?: return
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        // Update MediaSessionCompat metadata
+        val metadataBuilder = MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
+        mediaSessionCompat?.setMetadata(metadataBuilder.build())
+
+        // Update playback state
+        val stateBuilder = PlaybackStateCompat.Builder()
+            .setActions(
+                PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+                PlaybackStateCompat.ACTION_PLAY_PAUSE
+            )
+            .setState(
+                if (_isPlaying.value) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                _currentPosition.value,
+                1.0f
+            )
+        mediaSessionCompat?.setPlaybackState(stateBuilder.build())
+
         val openIntent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             context, 0, openIntent,
@@ -230,6 +270,18 @@ class MusicPlayerManager(private val context: Context) {
         scope.launch(Dispatchers.IO) {
             val albumArt = loadAlbumArt(song.coverArt)
 
+            // Update metadata with album art
+            if (albumArt != null) {
+                val metaWithArt = MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
+                    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
+                    .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArt)
+                    .build()
+                mediaSessionCompat?.setMetadata(metaWithArt)
+            }
+
             val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
             val favIcon = if (_isStarred.value) R.drawable.ic_notif_favorite else R.drawable.ic_notif_favorite_border
 
@@ -245,6 +297,12 @@ class MusicPlayerManager(private val context: Context) {
                 .setShowWhen(false)
                 // Album art as large icon
                 .setLargeIcon(albumArt)
+                // MediaStyle with MediaSessionCompat token for lock screen controls
+                .setStyle(
+                    MediaStyle()
+                        .setMediaSession(mediaSessionCompat!!.sessionToken)
+                        .setShowActionsInCompactView(0, 1, 2)
+                )
                 // Action buttons: prev, play/pause, next, favorite
                 .addAction(R.drawable.ic_notif_prev, "上一曲", prevPending)
                 .addAction(playPauseIcon, if (_isPlaying.value) "暂停" else "播放", playPausePending)
@@ -447,6 +505,11 @@ class MusicPlayerManager(private val context: Context) {
         alarmReceiver?.let {
             try { context.unregisterReceiver(it) } catch (_: Exception) { }
         }
+        mediaSessionCompat?.let {
+            it.isActive = false
+            it.release()
+        }
+        mediaSessionCompat = null
         mediaSession?.run {
             player.release()
             release()
