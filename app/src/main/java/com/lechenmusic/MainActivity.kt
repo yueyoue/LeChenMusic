@@ -79,7 +79,7 @@ fun UpdateDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(
-                Icons.Default.SystemUpdate,
+                Icons.Default.Download,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(36.dp)
