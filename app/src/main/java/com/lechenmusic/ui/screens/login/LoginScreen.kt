@@ -76,7 +76,8 @@ fun LoginScreen(viewModel: MainViewModel, onLoginSuccess: () -> Unit) {
             Text(
                 text = "悦音",
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
             Text(
                 text = "连接你的 Navidrome 音乐服务器",
