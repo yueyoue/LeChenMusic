@@ -21,6 +21,7 @@ class SettingsRepository(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode") // "dark" or "light"
         val CACHE_SIZE = intPreferencesKey("cache_size_gb")
         val RECENT_PLAY_IDS = stringPreferencesKey("recent_play_ids")
+        val CACHED_ALL_SONGS_JSON = stringPreferencesKey("cached_all_songs_json")
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { it[SERVER_URL] ?: "" }
@@ -68,5 +69,11 @@ class SettingsRepository(private val context: Context) {
         val url = context.dataStore.data.map { it[SERVER_URL] ?: "" }
         // We can't easily check flow here, so just return based on what we have
         return true // Will be checked in ViewModel
+    }
+
+    val cachedAllSongsJson: Flow<String> = context.dataStore.data.map { it[CACHED_ALL_SONGS_JSON] ?: "" }
+
+    suspend fun saveCachedAllSongsJson(json: String) {
+        context.dataStore.edit { it[CACHED_ALL_SONGS_JSON] = json }
     }
 }

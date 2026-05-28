@@ -10,6 +10,8 @@ import com.lechenmusic.data.repository.SettingsRepository
 import com.lechenmusic.data.repository.ServerStats
 import com.lechenmusic.player.MusicPlayerManager
 import com.lechenmusic.player.RepeatMode
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -80,6 +82,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // All songs
     private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
     val allSongs: StateFlow<List<Song>> = _allSongs.asStateFlow()
+
+    // All songs loading state
+    private val _allSongsLoading = MutableStateFlow(false)
+    val allSongsLoading: StateFlow<Boolean> = _allSongsLoading.asStateFlow()
+
+    private val _allSongsLoadError = MutableStateFlow<String?>(null)
+    val allSongsLoadError: StateFlow<String?> = _allSongsLoadError.asStateFlow()
 
     // Timer countdown (seconds remaining)
     private val _timerRemainingSeconds = MutableStateFlow(0L)
@@ -320,17 +329,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadAllSongs() {
         viewModelScope.launch {
-            _allSongs.value = emptyList()
-            // Use getAllSongs which combines search + album iteration for maximum coverage
-            repository.getAllSongs().onSuccess { songs ->
-                _allSongs.value = songs
-            }.onFailure {
-                // Fallback: try getRandomSongs
-                repository.getRandomSongs(500).onSuccess { songs ->
-                    _allSongs.value = songs
+            _allSongsLoading.value = true
+            _allSongsLoadError.value = null
+
+            // Step 1: Load cached songs first for instant display
+            val cachedJson = settings.cachedAllSongsJson.first()
+            if (cachedJson.isNotBlank()) {
+                try {
+                    val type = object : TypeToken<List<Song>>() {}.type
+                    val cachedSongs: List<Song> = Gson().fromJson(cachedJson, type)
+                    if (cachedSongs.isNotEmpty()) {
+                        _allSongs.value = cachedSongs
+                        _allSongsLoading.value = false
+                    }
+                } catch (_: Exception) { }
+            }
+
+            // Step 2: Fetch fresh data from server
+            try {
+                repository.getAllSongs().onSuccess { serverSongs ->
+                    val cachedIds = _allSongs.value.map { it.id }.toSet()
+                    val newSongs = serverSongs.filter { it.id !in cachedIds }
+
+                    if (newSongs.isNotEmpty() && _allSongs.value.isNotEmpty()) {
+                        // Merge: keep cached + add new songs
+                        val merged = _allSongs.value + newSongs
+                        _allSongs.value = merged
+                        _toastMessage.value = "发现 ${newSongs.size} 首新歌曲"
+                        // Save merged list to cache
+                        saveSongsToCache(merged)
+                    } else if (_allSongs.value.isEmpty()) {
+                        _allSongs.value = serverSongs
+                        saveSongsToCache(serverSongs)
+                    } else {
+                        // No new songs, just update cache with latest server data
+                        saveSongsToCache(serverSongs)
+                        _allSongs.value = serverSongs
+                    }
+                    _allSongsLoading.value = false
+                }.onFailure {
+                    if (_allSongs.value.isEmpty()) {
+                        // No cache and server failed
+                        repository.getRandomSongs(500).onSuccess { songs ->
+                            _allSongs.value = songs
+                            saveSongsToCache(songs)
+                        }.onFailure { e ->
+                            _allSongsLoadError.value = e.message
+                        }
+                    }
+                    _allSongsLoading.value = false
                 }
+            } catch (e: Exception) {
+                if (_allSongs.value.isEmpty()) {
+                    _allSongsLoadError.value = e.message
+                }
+                _allSongsLoading.value = false
             }
         }
+    }
+
+    private suspend fun saveSongsToCache(songs: List<Song>) {
+        try {
+            val json = Gson().toJson(songs)
+            settings.saveCachedAllSongsJson(json)
+        } catch (_: Exception) { }
     }
 
     fun addToPlaylist(playlistId: String, songId: String, playlistOwner: String = "") {
@@ -367,7 +429,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createPlaylistAndAddSong(name: String, songId: String, isPublic: Boolean = false) {
         viewModelScope.launch {
-            repository.createPlaylist(name, songId, isPublic).onSuccess {
+            val idToSend = songId.ifBlank { null }
+            repository.createPlaylist(name, idToSend, isPublic).onSuccess {
                 _toastMessage.value = "歌单创建成功"
                 // Refresh playlists after creating
                 repository.getPlaylists().onSuccess { _playlists.value = it }
@@ -449,6 +512,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.getPlaylists().onSuccess { _playlists.value = it }
             repository.getStarred().onSuccess { _starredSongs.value = it.songs }
+        }
+    }
+
+    fun updatePlaylistPublic(playlistId: String, isPublic: Boolean) {
+        viewModelScope.launch {
+            repository.updatePlaylistPublic(playlistId, isPublic).onSuccess {
+                _toastMessage.value = if (isPublic) "歌单已设为公开" else "歌单已设为私密"
+                // Refresh playlist detail
+                repository.getPlaylist(playlistId).onSuccess { _currentPlaylist.value = it }
+                // Refresh playlist list
+                repository.getPlaylists().onSuccess { _playlists.value = it }
+            }.onFailure {
+                _toastMessage.value = "修改失败: ${it.message}"
+            }
         }
     }
 }

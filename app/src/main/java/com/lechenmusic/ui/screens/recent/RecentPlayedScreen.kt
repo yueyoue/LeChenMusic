@@ -62,13 +62,13 @@ fun RecentPlayedScreen(
             }
         }
 
-        items(recentPlayedSongs) { song ->
+        items(recentPlayedSongs.take(20)) { song ->
             SongItem(
                 song = song,
                 serverUrl = serverUrl,
                 username = username,
                 password = password,
-                onClick = { onSongClick(song, recentPlayedSongs) }
+                onClick = { onSongClick(song, recentPlayedSongs.take(20)) }
             )
         }
     }

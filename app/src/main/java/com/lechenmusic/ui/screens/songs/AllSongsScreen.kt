@@ -1,5 +1,6 @@
 package com.lechenmusic.ui.screens.songs
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,29 +23,27 @@ fun AllSongsScreen(
     onSongClick: (Song, List<Song>) -> Unit
 ) {
     val allSongs by viewModel.allSongs.collectAsState()
+    val isLoading by viewModel.allSongsLoading.collectAsState()
+    val loadError by viewModel.allSongsLoadError.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
-    var isLoading by remember { mutableStateOf(true) }
-    var loadError by remember { mutableStateOf<String?>(null) }
+    val toastMessage by viewModel.toastMessage.collectAsState()
+    val context = LocalContext.current
+    var initialLoadTriggered by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        isLoading = true
-        loadError = null
-        try {
-            viewModel.loadAllSongs()
-        } catch (e: Exception) {
-            loadError = e.message
-        } finally {
-            isLoading = false
+    // Show toast messages
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
         }
     }
 
-    // Watch for data changes
-    LaunchedEffect(allSongs) {
-        if (allSongs.isNotEmpty()) {
-            isLoading = false
-            loadError = null
+    LaunchedEffect(Unit) {
+        if (!initialLoadTriggered) {
+            initialLoadTriggered = true
+            viewModel.loadAllSongs()
         }
     }
 
@@ -59,12 +59,24 @@ fun AllSongsScreen(
 
         if (allSongs.isNotEmpty()) {
             item {
-                Text(
-                    "${allSongs.size} 首歌曲",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${allSongs.size} 首歌曲",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (isLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("加载中...", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
             items(allSongs) { song ->
                 SongItem(
@@ -83,7 +95,21 @@ fun AllSongsScreen(
                         .padding(vertical = 60.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "加载中，请稍等...",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "首次加载需要同步服务器歌曲列表",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         } else if (loadError != null) {
@@ -106,11 +132,7 @@ fun AllSongsScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        isLoading = true
-                        loadError = null
-                        viewModel.loadAllSongs()
-                    }) {
+                    Button(onClick = { viewModel.loadAllSongs() }) {
                         Text("重试")
                     }
                 }

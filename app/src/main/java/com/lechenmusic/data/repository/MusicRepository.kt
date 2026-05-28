@@ -250,7 +250,7 @@ class MusicRepository {
 
     suspend fun createPlaylist(name: String, songId: String? = null, isPublic: Boolean = false): Result<String> {
         return try {
-            val response = api!!.createPlaylist(username, password, name, songId = songId)
+            val response = api!!.createPlaylist(username, password, name, songId = songId?.ifBlank { null })
             val playlistId = response.subsonicResponse.playlist?.id ?: ""
             // Set public visibility if requested
             if (playlistId.isNotBlank() && isPublic) {
@@ -349,6 +349,15 @@ class MusicRepository {
     suspend fun scrobble(id: String): Result<Unit> {
         return try {
             api!!.scrobble(username, password, id)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updatePlaylistPublic(playlistId: String, isPublic: Boolean): Result<Unit> {
+        return try {
+            api!!.updatePlaylist(username, password, playlistId, public = isPublic)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

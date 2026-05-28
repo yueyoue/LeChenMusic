@@ -295,7 +295,7 @@ fun PlayerScreen(
                 }
             }
 
-            // Action Bar: 收藏, 添加到歌单, 定时
+            // Action Bar: 收藏, 添加到歌单, 定时, 队列
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -336,6 +336,12 @@ fun PlayerScreen(
                         color = if (timerRemainingSeconds > 0) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { showPlaylistSheet = true }) {
+                    Icon(Icons.Default.QueueMusic, contentDescription = "队列", modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("队列", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
