@@ -9,6 +9,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
@@ -20,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.lechenmusic.MainActivity
+import com.lechenmusic.R
 import com.lechenmusic.data.model.Song
 import com.lechenmusic.data.repository.MusicRepository
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import androidx.media3.common.PlaybackException
 import kotlinx.coroutines.delay
+import java.net.URL
 
 enum class RepeatMode { OFF, ONE, ALL }
 
@@ -75,6 +79,10 @@ class MusicPlayerManager(private val context: Context) {
 
     companion object {
         const val ACTION_STOP_PLAYBACK = "com.lechenmusic.STOP_PLAYBACK"
+        const val ACTION_TOGGLE_FAVORITE = "com.lechenmusic.TOGGLE_FAVORITE"
+        const val ACTION_PREV = "com.lechenmusic.PREV"
+        const val ACTION_NEXT = "com.lechenmusic.NEXT"
+        const val ACTION_PLAY_PAUSE = "com.lechenmusic.PLAY_PAUSE"
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
     }
@@ -117,18 +125,31 @@ class MusicPlayerManager(private val context: Context) {
             .setCallback(object : MediaSession.Callback {})
             .build()
 
+        // Share MediaSession with the service
+        MusicPlaybackService.sharedMediaSession = mediaSession
+
         // Start foreground service for persistent notification
         startForegroundService()
 
-        // Register broadcast receiver for alarm-based timer
+        // Register broadcast receiver for alarm-based timer and notification actions
         alarmReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
-                if (intent?.action == ACTION_STOP_PLAYBACK) {
-                    player?.pause()
+                when (intent?.action) {
+                    ACTION_STOP_PLAYBACK -> player?.pause()
+                    ACTION_TOGGLE_FAVORITE -> toggleStar()
+                    ACTION_PREV -> skipPrevious()
+                    ACTION_NEXT -> skipNext()
+                    ACTION_PLAY_PAUSE -> togglePlayPause()
                 }
             }
         }
-        val filter = IntentFilter(ACTION_STOP_PLAYBACK)
+        val filter = IntentFilter().apply {
+            addAction(ACTION_STOP_PLAYBACK)
+            addAction(ACTION_TOGGLE_FAVORITE)
+            addAction(ACTION_PREV)
+            addAction(ACTION_NEXT)
+            addAction(ACTION_PLAY_PAUSE)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.registerReceiver(alarmReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -143,6 +164,14 @@ class MusicPlayerManager(private val context: Context) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
+            }
+            // Set MediaSession on the service after a short delay to ensure service is created
+            scope.launch {
+                delay(500)
+                try {
+                    val serviceIntent = Intent(context, MusicPlaybackService::class.java)
+                    // The service will get the MediaSession via the companion object
+                } catch (_: Exception) { }
             }
         } catch (_: Exception) { }
     }
@@ -172,17 +201,84 @@ class MusicPlayerManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentIntent(pendingIntent)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(song.title)
-            .setContentText("${song.artist} · ${song.album}")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(_isPlaying.value)
-            .build()
+        // Create action intents for notification buttons
+        val prevIntent = Intent(ACTION_PREV).setPackage(context.packageName)
+        val prevPending = PendingIntent.getBroadcast(
+            context, 1, prevIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
-        nm.notify(NOTIFICATION_ID, notification)
+        val playPauseIntent = Intent(ACTION_PLAY_PAUSE).setPackage(context.packageName)
+        val playPausePending = PendingIntent.getBroadcast(
+            context, 2, playPauseIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val nextIntent = Intent(ACTION_NEXT).setPackage(context.packageName)
+        val nextPending = PendingIntent.getBroadcast(
+            context, 3, nextIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val favIntent = Intent(ACTION_TOGGLE_FAVORITE).setPackage(context.packageName)
+        val favPending = PendingIntent.getBroadcast(
+            context, 4, favIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Load album art in background
+        scope.launch(Dispatchers.IO) {
+            val albumArt = loadAlbumArt(song.coverArt)
+
+            val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
+            val favIcon = if (_isStarred.value) R.drawable.ic_notif_favorite else R.drawable.ic_notif_favorite_border
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentIntent(pendingIntent)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(song.title)
+                .setContentText(song.artist)
+                .setSubText(song.album)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOngoing(_isPlaying.value)
+                .setShowWhen(false)
+                // Album art as large icon
+                .setLargeIcon(albumArt)
+                // MediaStyle with MediaSession token for lock screen controls
+                .setStyle(
+                    androidx.media3.session.MediaStyle()
+                        .setMediaSession(mediaSession?.token)
+                        .setShowActionsInCompactView(0, 1, 2)
+                )
+                // Action buttons: prev, play/pause, next, favorite
+                .addAction(R.drawable.ic_notif_prev, "上一曲", prevPending)
+                .addAction(playPauseIcon, if (_isPlaying.value) "暂停" else "播放", playPausePending)
+                .addAction(R.drawable.ic_notif_next, "下一曲", nextPending)
+                .addAction(favIcon, if (_isStarred.value) "取消收藏" else "收藏", favPending)
+                .build()
+
+            nm.notify(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun loadAlbumArt(coverArtId: String?): Bitmap? {
+        if (coverArtId.isNullOrBlank()) return null
+        return try {
+            val repo = repository ?: return null
+            val url = repo.getCoverArtUrl(coverArtId) ?: return null
+            val connection = URL(url).openConnection()
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            val inputStream = connection.getInputStream()
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            // Scale down to notification size (128dp)
+            val size = (128 * context.resources.displayMetrics.density).toInt()
+            Bitmap.createScaledBitmap(bitmap, size, size, true)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun playSong(song: Song, songs: List<Song> = listOf(song)) {
@@ -294,6 +390,7 @@ class MusicPlayerManager(private val context: Context) {
                 repo.star(song.id)
             }
             _isStarred.value = !_isStarred.value
+            updateNotification()
         }
     }
 

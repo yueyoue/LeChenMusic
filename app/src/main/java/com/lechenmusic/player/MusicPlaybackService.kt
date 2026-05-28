@@ -7,29 +7,39 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.lechenmusic.MainActivity
 
 /**
  * Foreground service that keeps the music playing when the app is in background.
- * The actual MediaSession and ExoPlayer are managed by MusicPlayerManager.
+ * Uses MediaSession for lock screen controls and notification integration.
  */
 class MusicPlaybackService : MediaSessionService() {
 
     companion object {
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
+        // Shared MediaSession reference from MusicPlayerManager
+        var sharedMediaSession: MediaSession? = null
     }
+
+    private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // Use shared MediaSession if available
+        mediaSession = sharedMediaSession
+        startForeground(NOTIFICATION_ID, buildDefaultNotification())
     }
 
-    override fun onGetSession(controllerInfo: androidx.media3.session.MediaSession.ControllerInfo): androidx.media3.session.MediaSession? {
-        // Return null - we handle MediaSession in MusicPlayerManager
-        return null
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        return mediaSession ?: sharedMediaSession
+    }
+
+    fun setMediaSession(session: MediaSession) {
+        mediaSession = session
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -37,10 +47,15 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        mediaSession?.run {
+            player.release()
+            release()
+        }
+        mediaSession = null
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildDefaultNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
