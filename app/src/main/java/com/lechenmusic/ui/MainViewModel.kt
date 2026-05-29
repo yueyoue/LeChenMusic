@@ -266,6 +266,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settings.clearLogin()
             _isLoggedIn.value = false
+            _randomAlbums.value = emptyList()
         }
     }
 
@@ -286,8 +287,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Load newest albums
             repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
 
-            // Load random albums
-            repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
+            // Load random albums - only if not already loaded (user must click "换一批" to refresh)
+            if (_randomAlbums.value.isEmpty()) {
+                repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
+            }
 
             // Load daily random songs - use cache if same day, only refresh on user click
             val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
@@ -650,10 +653,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _syncStatus.value = "同步收藏 (3/4)..."
                 repository.getStarred().onSuccess { _starredSongs.value = it.songs }
 
-                // Refresh home data (daily songs only refresh on user click "换一批")
+                // Refresh home data (daily songs and random albums only refresh on user click "换一批")
                 _syncStatus.value = "同步歌曲和专辑 (4/4)..."
                 repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
-                repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
 
                 // Refresh server stats
                 repository.getServerStats().onSuccess { _serverStats.value = it }
