@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.SecureRandom
@@ -27,35 +28,105 @@ data class UpdateInfo(
 
 object UpdateChecker {
 
-    private const val UPDATE_CHECK_URL = "https://lb.tthsdd.top/musicapp/update/version.json"
+    // GitHub releases API
+    private const val GITHUB_API_URL = "https://api.github.com/repos/yueyoue/LeChenMusic/releases/latest"
+    // Fallback custom server
+    private const val FALLBACK_UPDATE_URL = "https://lb.tthsdd.top/musicapp/update/version.json"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
-            try {
-                val request = Request.Builder()
-                    .url(UPDATE_CHECK_URL)
-                    .cacheControl(CacheControl.FORCE_NETWORK)
-                    .build()
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body?.string() ?: return@withContext null
-                val json = JSONObject(body)
-                val info = UpdateInfo(
-                    versionCode = json.getInt("versionCode"),
-                    versionName = json.getString("versionName"),
-                    apkUrl = json.getString("apkUrl"),
-                    updateLog = json.optString("updateLog", "")
-                )
-                if (info.versionCode > currentVersionCode) info else null
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
+            // Try GitHub releases first
+            val info = tryGitHubReleases()
+            if (info != null && info.versionCode > currentVersionCode) {
+                return@withContext info
             }
+            // Fallback to custom server
+            tryCustomServer(currentVersionCode)
+        }
+    }
+
+    private fun tryGitHubReleases(): UpdateInfo? {
+        return try {
+            val request = Request.Builder()
+                .url(GITHUB_API_URL)
+                .header("Accept", "application/vnd.github.v3+json")
+                .cacheControl(CacheControl.FORCE_NETWORK)
+                .build()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            val json = JSONObject(body)
+
+            val tagName = json.getString("tag_name") // e.g. "v1.1.1"
+            val versionName = tagName.removePrefix("v")
+            // Extract version code from body or parse from tag
+            val bodyText = json.optString("body", "")
+            val versionCodeMatch = Regex("versionCode:\\s*(\\d+)").find(bodyText)
+            val versionCode = versionCodeMatch?.groupValues?.get(1)?.toIntOrNull()
+                ?: parseVersionCodeFromTag(versionName)
+
+            // Find APK asset
+            val assets = json.getJSONArray("assets")
+            var apkUrl = ""
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val name = asset.getString("name")
+                if (name.endsWith(".apk")) {
+                    apkUrl = asset.getString("browser_download_url")
+                    break
+                }
+            }
+            if (apkUrl.isEmpty()) return null
+
+            UpdateInfo(
+                versionCode = versionCode,
+                versionName = tagName,
+                apkUrl = apkUrl,
+                updateLog = bodyText
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun parseVersionCodeFromTag(versionName: String): Int {
+        // Parse "1.1.1" -> 11 (major*100 + minor*10 + patch, but simple mapping)
+        val parts = versionName.split(".")
+        return try {
+            when {
+                parts.size >= 3 -> parts[0].toInt() * 100 + parts[1].toInt() * 10 + parts[2].toInt()
+                parts.size == 2 -> parts[0].toInt() * 100 + parts[1].toInt() * 10
+                else -> parts[0].toInt() * 100
+            }
+        } catch (e: Exception) { 0 }
+    }
+
+    private fun tryCustomServer(currentVersionCode: Int): UpdateInfo? {
+        return try {
+            val request = Request.Builder()
+                .url(FALLBACK_UPDATE_URL)
+                .cacheControl(CacheControl.FORCE_NETWORK)
+                .build()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            val json = JSONObject(body)
+            val info = UpdateInfo(
+                versionCode = json.getInt("versionCode"),
+                versionName = json.getString("versionName"),
+                apkUrl = json.getString("apkUrl"),
+                updateLog = json.optString("updateLog", "")
+            )
+            if (info.versionCode > currentVersionCode) info else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 
@@ -94,7 +165,9 @@ object UpdateChecker {
         return try {
             val downloadClient = OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
                 .build()
             downloadFile(downloadClient, apkFile, apkUrl, onProgress)
         } catch (e: Exception) {
@@ -118,7 +191,9 @@ object UpdateChecker {
             sslContext.init(null, trustAllCerts, SecureRandom())
             val downloadClient = OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
                 .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
                 .build()

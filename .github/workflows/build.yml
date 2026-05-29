@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,20 +28,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: LeChenMusic-debug
-          path: app/build/outputs/apk/debug/*.apk
+      - name: Get version info
+        id: version
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | sed 's/.*= //' | tr -d ' ')
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: LeChenMusic-release
-          path: app/build/outputs/apk/release/*.apk
+          tag_name: ${{ steps.version.outputs.version_name }}
+          name: "LeChenMusic ${{ steps.version.outputs.version_name }}"
+          body: "LeChenMusic ${{ steps.version.outputs.version_name }} (versionCode: ${{ steps.version.outputs.version_code }})"
+          files: app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
