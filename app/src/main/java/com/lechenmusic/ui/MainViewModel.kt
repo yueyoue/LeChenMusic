@@ -155,13 +155,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _updateStatus.value = "正在下载..."
             val context = getApplication<Application>()
-            val result = UpdateChecker.downloadAndInstall(
+            val apkFile = UpdateChecker.downloadApk(
                 context = context,
                 apkUrl = info.apkUrl,
                 onProgress = { _updateStatus.value = it }
             )
-            if (result == null) {
-                _updateStatus.value = "下载失败，请手动下载"
+            if (apkFile != null) {
+                _updateStatus.value = "下载完成，正在安装..."
+                UpdateChecker.installApk(context, apkFile)
+            } else {
+                // downloadApk already set error message via onProgress
             }
         }
     }
