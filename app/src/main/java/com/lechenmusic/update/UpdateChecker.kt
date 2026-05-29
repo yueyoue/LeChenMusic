@@ -31,7 +31,7 @@ object UpdateChecker {
     // GitHub releases API
     private const val GITHUB_API_URL = "https://api.github.com/repos/yueyoue/LeChenMusic/releases/latest"
     // Fallback custom server
-    private const val FALLBACK_UPDATE_URL = "https://lb.tthsdd.top/musicapp/update/version.json"
+    private const val FALLBACK_UPDATE_URL = "https://yy.tthsdd.top/musicapp/update/version.json"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
