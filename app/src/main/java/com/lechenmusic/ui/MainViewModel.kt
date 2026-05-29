@@ -140,6 +140,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val info = UpdateChecker.check(currentVersionCode)
                 if (info != null) {
+                    // If silent auto-check, respect skipped version
+                    if (silent) {
+                        val skippedCode = settings.skippedVersionCode.first()
+                        if (skippedCode >= info.versionCode) {
+                            // User already skipped this version, don't show
+                            _isCheckingUpdate.value = false
+                            _updateStatus.value = ""
+                            return@launch
+                        }
+                    }
                     _updateInfo.value = info
                 } else if (!silent) {
                     _toastMessage.value = "当前已是最新版本 ✓"
@@ -150,6 +160,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isCheckingUpdate.value = false
                 if (!silent) _updateStatus.value = ""
             }
+        }
+    }
+
+    /** Skip current update version */
+    fun skipUpdate() {
+        val info = _updateInfo.value ?: return
+        viewModelScope.launch {
+            settings.setSkippedVersionCode(info.versionCode)
+            _updateInfo.value = null
+            _updateStatus.value = ""
         }
     }
 

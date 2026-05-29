@@ -236,7 +236,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) { Text("稍后再说") }
+                TextButton(onClick = { viewModel.skipUpdate(); showUpdateDialog = false }) { Text("跳过该版本") }
             }
         )
     }

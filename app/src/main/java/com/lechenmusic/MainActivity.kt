@@ -58,7 +58,8 @@ class MainActivity : ComponentActivity() {
                     updateInfo = updateInfo,
                     updateStatus = updateStatus,
                     onDismiss = { viewModel.dismissUpdate() },
-                    onUpdate = { viewModel.downloadUpdate() }
+                    onUpdate = { viewModel.downloadUpdate() },
+                    onSkip = { viewModel.skipUpdate() }
                 )
 
                 LeChenMusicApp(viewModel)
@@ -72,7 +73,8 @@ fun UpdateDialog(
     updateInfo: UpdateInfo?,
     updateStatus: String,
     onDismiss: () -> Unit,
-    onUpdate: () -> Unit
+    onUpdate: () -> Unit,
+    onSkip: () -> Unit = onDismiss
 ) {
     if (updateInfo == null) return
 
@@ -124,8 +126,8 @@ fun UpdateDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("稍后提醒")
+            TextButton(onClick = onSkip) {
+                Text("跳过该版本")
             }
         }
     )
