@@ -194,11 +194,7 @@ fun HomeScreen(
         if (radioStations.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(28.dp))
-                if (radioStations.size > 6) {
-                    SectionHeader("📻 电台", "更多 ›") { onNavigateToRadio() }
-                } else {
-                    SectionHeader("📻 电台") { }
-                }
+                SectionHeader("📻 电台", "更多 ›") { onNavigateToRadio() }
             }
             item {
                 LazyRow(
