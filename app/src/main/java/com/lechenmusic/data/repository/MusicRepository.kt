@@ -363,6 +363,16 @@ class MusicRepository {
             Result.failure(e)
         }
     }
+
+    suspend fun getInternetRadioStations(): Result<List<InternetRadioStation>> {
+        return try {
+            val response = api!!.getInternetRadioStations(username, password)
+            val stations = response.subsonicResponse.internetRadioStations?.internetRadioStation ?: emptyList()
+            Result.success(stations)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 data class StarredData(

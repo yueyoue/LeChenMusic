@@ -42,6 +42,7 @@ fun HomeScreen(
     val dailySongs by viewModel.dailySongs.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val recentPlayedSongs by viewModel.recentPlayedSongs.collectAsState()
+    val radioStations by viewModel.radioStations.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
@@ -188,25 +189,49 @@ fun HomeScreen(
             }
         }
 
-        // 电台 (using random songs as radio)
-        item {
-            Spacer(modifier = Modifier.height(28.dp))
-            SectionHeader("📻 电台", "更多 ›")
-        }
-        item {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 16.dp, bottom = 20.dp)
-            ) {
-                val radioStations = listOf(
-                    Triple("华语经典", "经典华语金曲", Color(0xFFFF4757)),
-                    Triple("摇滚电台", "永不褪色的摇滚", Color(0xFFA55EEA)),
-                    Triple("轻音乐", "放松身心的旋律", Color(0xFF5352ED))
-                )
-                items(radioStations) { (name, desc, color) ->
-                    RadioCard(name = name, desc = desc, color = color, onClick = { })
+        // 电台 (from Navidrome server)
+        if (radioStations.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(28.dp))
+                SectionHeader("📻 电台") { }
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 20.dp)
+                ) {
+                    val radioColors = listOf(
+                        Color(0xFFFF4757),
+                        Color(0xFFA55EEA),
+                        Color(0xFF5352ED),
+                        Color(0xFF2ED573),
+                        Color(0xFF1E90FF),
+                        Color(0xFFFF6348)
+                    )
+                    items(radioStations) { station ->
+                        val color = radioColors[radioStations.indexOf(station) % radioColors.size]
+                        RadioCard(
+                            name = station.name,
+                            desc = "网络电台",
+                            color = color,
+                            onClick = { viewModel.playerManager.playRadioStation(station) }
+                        )
+                    }
                 }
+            }
+        } else {
+            item {
+                Spacer(modifier = Modifier.height(28.dp))
+                SectionHeader("📻 电台") { }
+            }
+            item {
+                Text(
+                    "暂无电台数据",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
             }
         }
     }

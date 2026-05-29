@@ -227,4 +227,14 @@ interface SubsonicApi {
         @Query("c") client: String = "lechenmusic",
         @Query("f") format: String = "json"
     ): SubsonicResponse
+
+    // Internet Radio Stations
+    @GET("rest/getInternetRadioStations")
+    suspend fun getInternetRadioStations(
+        @Query("u") username: String,
+        @Query("p") password: String,
+        @Query("v") version: String = "1.16.1",
+        @Query("c") client: String = "lechenmusic",
+        @Query("f") format: String = "json"
+    ): SubsonicResponse
 }

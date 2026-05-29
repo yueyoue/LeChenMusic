@@ -92,6 +92,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _allSongsLoadError = MutableStateFlow<String?>(null)
     val allSongsLoadError: StateFlow<String?> = _allSongsLoadError.asStateFlow()
 
+    // Internet Radio Stations
+    private val _radioStations = MutableStateFlow<List<InternetRadioStation>>(emptyList())
+    val radioStations: StateFlow<List<InternetRadioStation>> = _radioStations.asStateFlow()
+
     // Timer countdown (seconds remaining)
     private val _timerRemainingSeconds = MutableStateFlow(0L)
     val timerRemainingSeconds: StateFlow<Long> = _timerRemainingSeconds.asStateFlow()
@@ -323,6 +327,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             // Load playlists
             repository.getPlaylists().onSuccess { _playlists.value = it }
+
+            // Load internet radio stations
+            repository.getInternetRadioStations().onSuccess { _radioStations.value = it }
 
             // Load starred songs
             repository.getStarred().onSuccess { _starredSongs.value = it.songs }
@@ -644,6 +651,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Sync playlists
                 _syncStatus.value = "同步歌单 (1/4)..."
                 repository.getPlaylists().onSuccess { _playlists.value = it }
+
+                // Sync radio stations
+                repository.getInternetRadioStations().onSuccess { _radioStations.value = it }
 
                 // Sync artists
                 _syncStatus.value = "同步歌手 (2/4)..."

@@ -546,4 +546,35 @@ class MusicPlayerManager(private val context: Context) {
             context.stopService(intent)
         } catch (_: Exception) { }
     }
+
+    fun playRadioStation(station: com.lechenmusic.data.model.InternetRadioStation) {
+        player?.apply {
+            val mediaItem = MediaItem.Builder()
+                .setUri(station.streamUrl)
+                .setMediaId("radio_${station.id}")
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(station.name)
+                        .setArtist("电台")
+                        .setAlbumTitle("网络电台")
+                        .build()
+                )
+                .build()
+            setMediaItem(mediaItem)
+            prepare()
+            play()
+        }
+        // Create a pseudo Song for notification display
+        _currentSong.value = com.lechenmusic.data.model.Song(
+            id = "radio_${station.id}",
+            title = station.name,
+            artist = "网络电台",
+            album = "电台",
+            duration = 0
+        )
+        _playlist.value = emptyList()
+        _currentIndex.value = 0
+        _isStarred.value = false
+        updateNotification()
+    }
 }

@@ -31,7 +31,8 @@ data class SubsonicBody(
     val songCount: Int? = null,
     val albumCount: Int? = null,
     val artistCount: Int? = null,
-    val indexes: IndexesWrapper? = null
+    val indexes: IndexesWrapper? = null,
+    val internetRadioStations: InternetRadioStationsWrapper? = null
 )
 
 data class IndexesWrapper(
@@ -188,3 +189,15 @@ data class LyricsData(
     /** Get lyrics text, checking both 'value' and 'lyrics' fields */
     val text: String? get() = value?.takeIf { it.isNotBlank() } ?: lyrics?.takeIf { it.isNotBlank() }
 }
+
+data class InternetRadioStationsWrapper(
+    val internetRadioStation: List<InternetRadioStation>? = null
+)
+
+data class InternetRadioStation(
+    val id: String = "",
+    val name: String = "",
+    val streamUrl: String = "",
+    val coverArt: String? = null,
+    val homepageUrl: String? = null
+)
