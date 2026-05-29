@@ -1,6 +1,7 @@
 package com.lechenmusic.ui.screens.settings
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,10 +40,24 @@ fun SettingsScreen(
     var showUpdateDialog by remember { mutableStateOf(false) }
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val toastMessage by viewModel.toastMessage.collectAsState()
+    var userTriggeredCheck by remember { mutableStateOf(false) }
 
-    // 检查到更新时自动弹窗
+    // Show toast messages (including "already latest")
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
+        }
+    }
+
+    // 检查到更新时自动弹窗（仅用户手动检查时）
     LaunchedEffect(updateInfo) {
-        if (updateInfo != null) showUpdateDialog = true
+        if (updateInfo != null && userTriggeredCheck) {
+            showUpdateDialog = true
+            userTriggeredCheck = false
+        }
     }
     var musicCacheSize by remember { mutableStateOf("计算中...") }
     var otherDataSize by remember { mutableStateOf("计算中...") }
@@ -154,7 +169,7 @@ fun SettingsScreen(
                                 else if (updateInfo != null) "有新版本 v${updateInfo!!.versionName}"
                                 else if (updateStatus.isNotEmpty()) updateStatus
                                 else "当前 v${getCurrentVersionName(context)}",
-                        onClick = { viewModel.checkForUpdate(silent = false) }
+                        onClick = { userTriggeredCheck = true; viewModel.checkForUpdate(silent = false) }
                     )
                 }
             }

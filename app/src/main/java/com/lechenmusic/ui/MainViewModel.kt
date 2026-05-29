@@ -206,6 +206,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.configure(url, user, pass)
                     _isLoggedIn.value = true
                     loadHomeData()
+                    // Auto-sync all songs in background
+                    loadAllSongs()
                 }
             }
         }
@@ -214,6 +216,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playerManager.onSongAutoAdvanced = { song ->
             viewModelScope.launch {
                 settings.addRecentPlay(song.id)
+                addSongToRecentCache(song)
                 // Refresh recent played songs list
                 loadRecentPlayedSongs()
             }
@@ -314,23 +317,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val ids = idsStr.split(",").filter { it.isNotEmpty() }
         if (ids.isEmpty()) return
         val recentSongs = mutableListOf<Song>()
-        val albumSources = mutableListOf<List<Album>>()
-        repository.getRecentAlbums(20).onSuccess { albumSources.add(it) }
-        repository.getNewestAlbums(20).onSuccess { albumSources.add(it) }
-        repository.getFrequentAlbums(20).onSuccess { albumSources.add(it) }
-        for (albums in albumSources) {
-            for (album in albums) {
-                if (recentSongs.size >= ids.size) break
-                repository.getAlbum(album.id).onSuccess { detail ->
-                    detail.song?.forEach { song ->
-                        if (ids.contains(song.id) && recentSongs.none { it.id == song.id }) {
-                            recentSongs.add(song)
+
+        // First try: search through allSongs cache (fast, usually available)
+        val allCached = _allSongs.value
+        if (allCached.isNotEmpty()) {
+            for (id in ids) {
+                val found = allCached.find { it.id == id }
+                if (found != null && recentSongs.none { it.id == found.id }) {
+                    recentSongs.add(found)
+                }
+            }
+        }
+
+        // Second try: search through albums if allSongs cache didn't cover all IDs
+        if (recentSongs.size < ids.size) {
+            val albumSources = mutableListOf<List<Album>>()
+            repository.getRecentAlbums(20).onSuccess { albumSources.add(it) }
+            repository.getNewestAlbums(20).onSuccess { albumSources.add(it) }
+            repository.getFrequentAlbums(20).onSuccess { albumSources.add(it) }
+            for (albums in albumSources) {
+                for (album in albums) {
+                    if (recentSongs.size >= ids.size) break
+                    repository.getAlbum(album.id).onSuccess { detail ->
+                        detail.song?.forEach { song ->
+                            if (ids.contains(song.id) && recentSongs.none { it.id == song.id }) {
+                                recentSongs.add(song)
+                            }
                         }
                     }
                 }
+                if (recentSongs.size >= ids.size) break
             }
-            if (recentSongs.size >= ids.size) break
         }
+
         val sorted = ids.mapNotNull { id -> recentSongs.find { it.id == id } }
         if (sorted.isNotEmpty()) {
             _recentPlayedSongs.value = sorted

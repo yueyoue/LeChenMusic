@@ -148,8 +148,7 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
         BottomTab(Screen.Favorites.route, "收藏", Icons.Default.Favorite),
         BottomTab(Screen.Search.route, "搜索", Icons.Default.Search),
         BottomTab(Screen.Artists.route, "歌手", Icons.Default.Person),
-        BottomTab(Screen.Albums.route, "专辑", Icons.Default.Album),
-        BottomTab(Screen.AllSongs.route, "歌曲", Icons.Default.MusicNote)
+        BottomTab(Screen.Albums.route, "专辑", Icons.Default.Album)
     )
 
     val showBottomBar = currentRoute in tabs.map { it.route }
