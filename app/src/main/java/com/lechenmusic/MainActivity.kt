@@ -31,6 +31,7 @@ import com.lechenmusic.ui.screens.artists.ArtistsScreen
 import com.lechenmusic.ui.screens.favorites.FavoritesScreen
 import com.lechenmusic.ui.screens.home.HomeScreen
 import com.lechenmusic.ui.screens.home.PlaylistDetailScreen
+import com.lechenmusic.ui.screens.home.RadioScreen
 import com.lechenmusic.ui.screens.login.LoginScreen
 import com.lechenmusic.ui.screens.player.PlayerScreen
 import com.lechenmusic.ui.screens.recent.RecentPlayedScreen
@@ -225,7 +226,8 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                             onNavigateToAlbums = { navController.navigate(Screen.Albums.route) },
                             onNavigateToFavorites = { navController.navigate(Screen.Favorites.route) },
                             onNavigateToAllSongs = { navController.navigate(Screen.AllSongs.route) },
-                            onNavigateToRecentPlayed = { navController.navigate(Screen.RecentPlayed.route) }
+                            onNavigateToRecentPlayed = { navController.navigate(Screen.RecentPlayed.route) },
+                            onNavigateToRadio = { navController.navigate(Screen.Radio.route) }
                         )
                     }
                     composable(Screen.Favorites.route) {
@@ -322,6 +324,12 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                             playlistId = playlistId,
                             onBack = { navController.popBackStack() },
                             onSongClick = { song, playlist -> viewModel.playSong(song, playlist) }
+                        )
+                    }
+                    composable(Screen.Radio.route) {
+                        RadioScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }

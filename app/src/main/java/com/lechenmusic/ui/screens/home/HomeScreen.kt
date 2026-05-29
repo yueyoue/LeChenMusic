@@ -35,7 +35,8 @@ fun HomeScreen(
     onNavigateToAlbums: () -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
     onNavigateToAllSongs: () -> Unit = {},
-    onNavigateToRecentPlayed: () -> Unit = {}
+    onNavigateToRecentPlayed: () -> Unit = {},
+    onNavigateToRadio: () -> Unit = {}
 ) {
     val newestAlbums by viewModel.newestAlbums.collectAsState()
     val randomAlbums by viewModel.randomAlbums.collectAsState()
@@ -193,7 +194,11 @@ fun HomeScreen(
         if (radioStations.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(28.dp))
-                SectionHeader("📻 电台") { }
+                if (radioStations.size > 6) {
+                    SectionHeader("📻 电台", "更多 ›") { onNavigateToRadio() }
+                } else {
+                    SectionHeader("📻 电台") { }
+                }
             }
             item {
                 LazyRow(
@@ -209,7 +214,7 @@ fun HomeScreen(
                         Color(0xFF1E90FF),
                         Color(0xFFFF6348)
                     )
-                    items(radioStations) { station ->
+                    items(radioStations.take(6)) { station ->
                         val color = radioColors[radioStations.indexOf(station) % radioColors.size]
                         RadioCard(
                             name = station.name,
