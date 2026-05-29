@@ -233,6 +233,7 @@ class MusicPlayerManager(private val context: Context) {
     private fun updateNotification() {
         val song = _currentSong.value ?: return
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val sessionCompat = mediaSessionCompat ?: return
 
         // Update MediaSession metadata (for lock screen display)
         val metadataBuilder = MediaMetadataCompat.Builder()
@@ -240,7 +241,7 @@ class MusicPlayerManager(private val context: Context) {
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
             .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
-        mediaSessionCompat?.setMetadata(metadataBuilder.build())
+        sessionCompat.setMetadata(metadataBuilder.build())
 
         // Update playback state with current position (critical for lock screen progress)
         val stateBuilder = PlaybackStateCompat.Builder()
@@ -257,7 +258,7 @@ class MusicPlayerManager(private val context: Context) {
                 player?.currentPosition ?: _currentPosition.value,
                 1.0f
             )
-        mediaSessionCompat?.setPlaybackState(stateBuilder.build())
+        sessionCompat.setPlaybackState(stateBuilder.build())
 
         val openIntent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -303,7 +304,7 @@ class MusicPlayerManager(private val context: Context) {
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
                     .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArt)
                     .build()
-                mediaSessionCompat?.setMetadata(metaWithArt)
+                sessionCompat.setMetadata(metaWithArt)
             }
 
             val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
@@ -324,7 +325,7 @@ class MusicPlayerManager(private val context: Context) {
                 // MediaStyle with MediaSessionCompat token for lock screen controls
                 .setStyle(
                     MediaStyle()
-                        .setMediaSession(mediaSessionCompat!!.sessionToken)
+                        .setMediaSession(sessionCompat.sessionToken)
                         .setShowActionsInCompactView(0, 1, 2)
                 )
                 // Action buttons: prev, play/pause, next, favorite
@@ -459,14 +460,22 @@ class MusicPlayerManager(private val context: Context) {
     fun toggleStar() {
         val song = _currentSong.value ?: return
         val repo = repository ?: return
+        // Don't allow starring radio stations (they have fake IDs like "radio_xxx")
+        if (song.id.startsWith("radio_")) return
         scope.launch(Dispatchers.IO) {
-            if (_isStarred.value) {
-                repo.unstar(song.id)
-            } else {
-                repo.star(song.id)
+            try {
+                val result = if (_isStarred.value) {
+                    repo.unstar(song.id)
+                } else {
+                    repo.star(song.id)
+                }
+                if (result.isSuccess) {
+                    _isStarred.value = !_isStarred.value
+                    updateNotification()
+                }
+            } catch (_: Exception) {
+                // Silently ignore star/unstar errors to prevent crashes
             }
-            _isStarred.value = !_isStarred.value
-            updateNotification()
         }
     }
 
