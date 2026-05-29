@@ -454,7 +454,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadAllSongs() {
+    fun loadAllSongs(showToast: Boolean = false) {
         viewModelScope.launch {
             _allSongsLoading.value = true
             _allSongsLoadError.value = null
@@ -482,7 +482,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         // Merge: keep cached + add new songs
                         val merged = _allSongs.value + newSongs
                         _allSongs.value = merged
-                        _toastMessage.value = "发现 ${newSongs.size} 首新歌曲"
+                        if (showToast) _toastMessage.value = "发现 ${newSongs.size} 首新歌曲"
                         // Save merged list to cache
                         saveSongsToCache(merged)
                     } else if (_allSongs.value.isEmpty()) {
@@ -614,11 +614,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _syncStatus.value = "同步收藏 (3/4)..."
                 repository.getStarred().onSuccess { _starredSongs.value = it.songs }
 
-                // Sync random songs for daily recommendations + refresh home data
+                // Refresh home data (daily songs only refresh on user click "换一批")
                 _syncStatus.value = "同步歌曲和专辑 (4/4)..."
                 repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
                 repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
-                repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
 
                 // Refresh server stats
                 repository.getServerStats().onSuccess { _serverStats.value = it }

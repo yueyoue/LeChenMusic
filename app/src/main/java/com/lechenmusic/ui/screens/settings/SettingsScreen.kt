@@ -168,7 +168,7 @@ fun SettingsScreen(
                         value = if (isChecking) "检查中..."
                                 else if (updateInfo != null) "有新版本 v${updateInfo!!.versionName}"
                                 else if (updateStatus.isNotEmpty()) updateStatus
-                                else "当前 v${getCurrentVersionName(context)}",
+                                else "当前 ${getCurrentVersionName(context)}",
                         onClick = { userTriggeredCheck = true; viewModel.checkForUpdate(silent = false) }
                     )
                 }

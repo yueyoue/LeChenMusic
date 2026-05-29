@@ -43,7 +43,7 @@ fun AllSongsScreen(
     LaunchedEffect(Unit) {
         if (!initialLoadTriggered) {
             initialLoadTriggered = true
-            viewModel.loadAllSongs()
+            viewModel.loadAllSongs(showToast = true)
         }
     }
 
