@@ -85,7 +85,7 @@ object UpdateChecker {
 
             UpdateInfo(
                 versionCode = versionCode,
-                versionName = tagName,
+                versionName = versionName,
                 apkUrl = apkUrl,
                 updateLog = bodyText
             )
