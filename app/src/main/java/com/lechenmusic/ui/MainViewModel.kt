@@ -166,9 +166,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             if (apkFile != null) {
                 _updateStatus.value = "下载完成，正在安装..."
-                UpdateChecker.installApk(context, apkFile)
-                // 延迟后重置状态，避免卡在"正在安装"
-                kotlinx.coroutines.delay(8000)
+                val success = UpdateChecker.installApk(context, apkFile)
+                if (!success) {
+                    _updateStatus.value = "安装启动失败"
+                    kotlinx.coroutines.delay(3000)
+                } else {
+                    // 延迟后重置状态，避免卡在"正在安装"
+                    kotlinx.coroutines.delay(8000)
+                }
                 _updateStatus.value = ""
                 _updateInfo.value = null
             } else {

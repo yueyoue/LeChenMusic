@@ -163,8 +163,12 @@ object UpdateChecker {
         return if (apkFile.exists() && apkFile.length() > 0) apkFile else null
     }
 
-    fun installApk(context: Context, apkFile: File) {
-        try {
+    fun installApk(context: Context, apkFile: File): Boolean {
+        return try {
+            if (!apkFile.exists() || apkFile.length() == 0L) {
+                android.widget.Toast.makeText(context, "安装包文件无效", android.widget.Toast.LENGTH_LONG).show()
+                return false
+            }
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -175,8 +179,15 @@ object UpdateChecker {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             context.startActivity(intent)
+            true
         } catch (e: Exception) {
             e.printStackTrace()
+            android.widget.Toast.makeText(
+                context,
+                "安装失败: ${e.message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            false
         }
     }
 }

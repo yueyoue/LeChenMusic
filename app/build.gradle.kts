@@ -11,9 +11,18 @@ android {
         applicationId = "com.lechenmusic"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "v1.0.8"
+        versionCode = 9
+        versionName = "v1.0.9"
         vectorDrawables.useSupportLibrary = true
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore.p12")
+            storePassword = "lechen123"
+            keyAlias = "lechenmusic"
+            keyPassword = "lechen123"
+        }
     }
 
     buildTypes {
@@ -24,7 +33,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
