@@ -23,6 +23,8 @@ class SettingsRepository(private val context: Context) {
         val RECENT_PLAY_IDS = stringPreferencesKey("recent_play_ids")
         val CACHED_ALL_SONGS_JSON = stringPreferencesKey("cached_all_songs_json")
         val CACHED_RECENT_SONGS_JSON = stringPreferencesKey("cached_recent_songs_json")
+        val CACHED_DAILY_SONGS_JSON = stringPreferencesKey("cached_daily_songs_json")
+        val CACHED_DAILY_SONGS_DATE = stringPreferencesKey("cached_daily_songs_date")
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { it[SERVER_URL] ?: "" }
@@ -82,5 +84,15 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun saveCachedRecentSongsJson(json: String) {
         context.dataStore.edit { it[CACHED_RECENT_SONGS_JSON] = json }
+    }
+
+    val cachedDailySongsJson: Flow<String> = context.dataStore.data.map { it[CACHED_DAILY_SONGS_JSON] ?: "" }
+    val cachedDailySongsDate: Flow<String> = context.dataStore.data.map { it[CACHED_DAILY_SONGS_DATE] ?: "" }
+
+    suspend fun saveCachedDailySongs(json: String, date: String) {
+        context.dataStore.edit { prefs ->
+            prefs[CACHED_DAILY_SONGS_JSON] = json
+            prefs[CACHED_DAILY_SONGS_DATE] = date
+        }
     }
 }

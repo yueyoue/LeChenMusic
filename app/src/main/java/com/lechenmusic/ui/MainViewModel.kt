@@ -283,8 +283,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Load random albums
             repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
 
-            // Load daily random songs
-            repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
+            // Load daily random songs - use cache if same day, only refresh on user click
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val cachedDate = settings.cachedDailySongsDate.first()
+            val cachedDailyJson = settings.cachedDailySongsJson.first()
+            if (cachedDate == today && cachedDailyJson.isNotBlank()) {
+                try {
+                    val type = object : TypeToken<List<Song>>() {}.type
+                    val cachedSongs: List<Song> = Gson().fromJson(cachedDailyJson, type)
+                    if (cachedSongs.isNotEmpty()) {
+                        _dailySongs.value = cachedSongs
+                    } else {
+                        repository.getRandomSongs(4).onSuccess {
+                            _dailySongs.value = it
+                            settings.saveCachedDailySongs(Gson().toJson(it), today)
+                        }
+                    }
+                } catch (_: Exception) {
+                    repository.getRandomSongs(4).onSuccess {
+                        _dailySongs.value = it
+                        settings.saveCachedDailySongs(Gson().toJson(it), today)
+                    }
+                }
+            } else {
+                repository.getRandomSongs(4).onSuccess {
+                    _dailySongs.value = it
+                    settings.saveCachedDailySongs(Gson().toJson(it), today)
+                }
+            }
 
             // Load playlists
             repository.getPlaylists().onSuccess { _playlists.value = it }
@@ -450,7 +476,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshDailySongs() {
         viewModelScope.launch {
-            repository.getRandomSongs(4).onSuccess { _dailySongs.value = it }
+            repository.getRandomSongs(4).onSuccess {
+                _dailySongs.value = it
+                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                settings.saveCachedDailySongs(Gson().toJson(it), today)
+            }
         }
     }
 
