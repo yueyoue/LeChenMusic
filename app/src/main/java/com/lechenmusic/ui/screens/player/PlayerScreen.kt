@@ -296,6 +296,7 @@ fun PlayerScreen(
             }
 
             // Action Bar: 收藏, 添加到歌单, 定时, 队列
+            val isRadioStation = song.id.startsWith("radio_")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -303,14 +304,18 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { playerManager.toggleStar() }) {
+                    modifier = Modifier.clickable(enabled = !isRadioStation) { playerManager.toggleStar() }) {
                     Icon(
                         if (isStarred) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "收藏",
-                        tint = if (isStarred) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isStarred) Color.Red
+                        else if (isRadioStation) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(24.dp)
                     )
-                    Text("收藏", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("收藏", fontSize = 10.sp,
+                        color = if (isRadioStation) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.clickable { showPlaylistSelectionDialog = true }) {
