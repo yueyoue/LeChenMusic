@@ -1,0 +1,2767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>乐宸音乐 - Navidrome Player UI Design</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #FF4757;
+    --primary-dark: #E8414F;
+    --bg: #0E0E0E;
+    --bg-card: #1A1A1A;
+    --bg-elevated: #222222;
+    --text: #FFFFFF;
+    --text-secondary: #999999;
+    --text-tertiary: #666666;
+    --border: #2A2A2A;
+    --accent-green: #2ED573;
+    --accent-blue: #5352ED;
+    --accent-orange: #FFA502;
+    --accent-purple: #A55EEA;
+    --tab-height: 56px;
+    --status-bar: 28px;
+  }
+
+  /* ===== LIGHT THEME ===== */
+  [data-theme="light"] {
+    --primary: #FF4757;
+    --primary-dark: #E8414F;
+    --bg: #F5F5F7;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #EFEFEF;
+    --text: #1A1A1A;
+    --text-secondary: #666666;
+    --text-tertiary: #999999;
+    --border: #E0E0E0;
+    --accent-green: #2ED573;
+    --accent-blue: #5352ED;
+    --accent-orange: #FFA502;
+    --accent-purple: #A55EEA;
+  }
+  [data-theme="light"] .phone-frame {
+    border-color: #D0D0D0;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(0,0,0,0.05);
+  }
+  [data-theme="light"] .notch {
+    background: #E8E8E8;
+  }
+  [data-theme="light"] .tab-bar {
+    background: rgba(255,255,255,0.95);
+    border-top-color: rgba(0,0,0,0.08);
+  }
+  [data-theme="light"] .mini-player {
+    background: rgba(255,255,255,0.97);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  [data-theme="light"] .player-bg {
+    background: linear-gradient(180deg, #F0E6E8 0%, var(--bg) 60%);
+  }
+  [data-theme="light"] .lyrics-view {
+    background: var(--bg);
+  }
+  [data-theme="light"] .similar-view {
+    background: var(--bg);
+  }
+  [data-theme="light"] .lyrics-view .player-header,
+  [data-theme="light"] .similar-view .player-header {
+    background: var(--bg);
+  }
+  [data-theme="light"] .login-page {
+    background: linear-gradient(135deg, #F5F5F7 0%, #F0E6E8 50%, #F5F5F7 100%);
+  }
+  [data-theme="light"] .progress-bar {
+    background: rgba(0,0,0,0.1);
+  }
+  [data-theme="light"] .radio-card {
+    background: linear-gradient(135deg, #FFFFFF, #F5F5F7);
+  }
+  [data-theme="light"] .radio-card::after {
+    background: rgba(255,71,87,0.06);
+  }
+  [data-theme="light"] .daily-card .daily-bg {
+    filter: brightness(0.85);
+  }
+  [data-theme="light"] .modal-overlay {
+    background: rgba(0,0,0,0.3);
+  }
+  [data-theme="light"] .hot-tag {
+    background: #F0F0F0;
+  }
+  [data-theme="light"] .toast {
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  }
+  [data-theme="light"] .playlist-item .playlist-cover .gradient-overlay {
+    background: linear-gradient(135deg, rgba(255,71,87,0.2), rgba(83,82,237,0.2));
+  }
+
+  /* Theme Toggle Switch */
+  .theme-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .theme-toggle {
+    width: 48px;
+    height: 28px;
+    background: var(--text-tertiary);
+    border-radius: 14px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .theme-toggle.active {
+    background: var(--primary);
+  }
+  .theme-toggle::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .theme-toggle.active::after {
+    transform: translateX(20px);
+  }
+  body {
+    font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Phone Frame */
+  .phone-frame {
+    width: 390px;
+    height: 844px;
+    margin: 20px auto;
+    border-radius: 44px;
+    border: 3px solid #333;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .status-bar {
+    height: var(--status-bar);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 30px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .notch {
+    width: 120px;
+    height: 28px;
+    background: #000;
+    border-radius: 0 0 18px 18px;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+  }
+
+  /* Page Container */
+  .page {
+    height: calc(844px - var(--status-bar) - var(--tab-height) - 20px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 20px;
+    scroll-behavior: smooth;
+  }
+  .page::-webkit-scrollbar { display: none; }
+
+  /* ===== LOGIN PAGE ===== */
+  .login-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: calc(844px - var(--status-bar));
+    padding: 40px 32px;
+    background: linear-gradient(135deg, #0E0E0E 0%, #1A0A0A 50%, #0E0E0E 100%);
+  }
+  .login-logo {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--primary), #FF6B81);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(255,71,87,0.3);
+  }
+  .login-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .login-subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 48px;
+  }
+  .input-group {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+  .input-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .input-group input {
+    width: 100%;
+    height: 50px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 15px;
+    padding: 0 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus {
+    border-color: var(--primary);
+  }
+  .input-group input::placeholder {
+    color: var(--text-tertiary);
+  }
+  .login-btn {
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(135deg, var(--primary), #FF6B81);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .login-btn:active { transform: scale(0.98); opacity: 0.9; }
+  .login-remember {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ===== BOTTOM TAB BAR ===== */
+  .tab-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--tab-height);
+    background: rgba(14,14,14,0.95);
+    backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    border-top: 0.5px solid rgba(255,255,255,0.08);
+    padding-bottom: 8px;
+    z-index: 50;
+  }
+  .tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    padding: 6px 12px;
+    transition: all 0.2s;
+  }
+  .tab-item .tab-icon {
+    font-size: 22px;
+    opacity: 0.5;
+    transition: all 0.2s;
+  }
+  .tab-item .tab-label {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    transition: all 0.2s;
+  }
+  .tab-item.active .tab-icon { opacity: 1; }
+  .tab-item.active .tab-label { color: var(--primary); font-weight: 600; }
+
+  /* ===== HOME PAGE ===== */
+  .home-header {
+    padding: 12px 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .home-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .home-header .header-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .header-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  /* Search Bar */
+  .search-bar {
+    margin: 16px 20px 0;
+    height: 42px;
+    background: var(--bg-card);
+    border-radius: 21px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .search-bar span {
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+
+  /* Section */
+  .section {
+    margin-top: 28px;
+    padding: 0 20px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .section-header .more-btn {
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* Horizontal Scroll */
+  .h-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin: 0 -20px;
+    padding: 0 20px 4px;
+  }
+  .h-scroll::-webkit-scrollbar { display: none; }
+
+  /* Album Card */
+  .album-card {
+    min-width: 140px;
+    scroll-snap-align: start;
+    cursor: pointer;
+  }
+  .album-card .cover {
+    width: 140px;
+    height: 140px;
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    position: relative;
+    overflow: hidden;
+  }
+  .album-card .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .album-card .play-count {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .album-card .title {
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .album-card .artist {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+  }
+
+  /* Daily Recommend - Large Card */
+  .daily-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .daily-card {
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    height: 100px;
+    cursor: pointer;
+  }
+  .daily-card .daily-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.6);
+  }
+  .daily-card .daily-info {
+    position: relative;
+    z-index: 2;
+    padding: 14px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .daily-card .daily-num {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 0.3;
+    position: absolute;
+    top: 10px;
+    left: 14px;
+  }
+  .daily-card .daily-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .daily-card .daily-sub {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+
+  /* Recent Play - Mini Card */
+  .recent-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    cursor: pointer;
+  }
+  .recent-item + .recent-item {
+    border-top: 0.5px solid var(--border);
+  }
+  .recent-item .recent-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    flex-shrink: 0;
+  }
+  .recent-item .recent-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .recent-item .recent-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recent-item .recent-artist {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .recent-item .recent-duration {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* Playlist Grid */
+  .playlist-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .playlist-item {
+    cursor: pointer;
+  }
+  .playlist-item .playlist-cover {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    position: relative;
+  }
+  .playlist-item .playlist-cover .gradient-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255,71,87,0.3), rgba(83,82,237,0.3));
+  }
+  .playlist-item .playlist-name {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .playlist-item .playlist-count {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+
+  /* Radio Card */
+  .radio-card {
+    min-width: 200px;
+    height: 80px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--bg-elevated), #252525);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    cursor: pointer;
+    scroll-snap-align: start;
+    position: relative;
+    overflow: hidden;
+  }
+  .radio-card::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255,71,87,0.08);
+  }
+  .radio-card .radio-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #FF6B81);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .radio-card .radio-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .radio-card .radio-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .radio-card .radio-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ===== MINI PLAYER (floating) ===== */
+  .mini-player {
+    position: absolute;
+    bottom: calc(var(--tab-height) + 4px);
+    left: 8px;
+    right: 8px;
+    height: 64px;
+    background: rgba(30,30,30,0.97);
+    backdrop-filter: blur(20px);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 12px;
+    z-index: 40;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .mini-player .mini-cover {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    flex-shrink: 0;
+  }
+  .mini-player .mini-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .mini-player .mini-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mini-player .mini-artist {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .mini-player .mini-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .mini-player .mini-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  /* ===== PLAYER PAGE (Full Screen) ===== */
+  .player-page {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+  }
+  .player-page.show { display: flex; }
+  .player-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #1A0A0A 0%, var(--bg) 60%);
+    z-index: 0;
+  }
+  .player-header {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 40px 20px 12px;
+  }
+  .player-header .close-btn {
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  .player-header .player-source {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* Cover Wrapper - contains cover, lyrics, similar */
+  .player-cover-wrapper {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px;
+    overflow: hidden;
+  }
+
+  /* Cover Art Area */
+  .player-cover-area {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .cover-container {
+    width: 280px;
+    height: 280px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .cover-container .cover-img {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #FF4757, #5352ED);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+  }
+  .cover-indicator {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 24px;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .cover-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--text-tertiary);
+  }
+  .cover-dot.active { background: var(--primary); width: 18px; }
+
+  /* Cover View Tabs */
+  .cover-tabs {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 57px;
+    position: relative;
+    z-index: 20;
+    flex-shrink: 0;
+  }
+  .cover-tab {
+    padding: 4px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.25s;
+    background: transparent;
+  }
+  .cover-tab.active {
+    color: var(--text);
+    background: rgba(255,255,255,0.1);
+    font-weight: 600;
+  }
+  [data-theme="light"] .cover-tab.active {
+    background: rgba(0,0,0,0.06);
+  }
+  .swipe-hint {
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+
+  /* Player Info */
+  .player-info {
+    position: relative;
+    z-index: 2;
+    padding: 14px 24px 0;
+    text-align: center;
+  }
+  .player-song-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .player-album-name {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  /* Progress Bar */
+  .player-progress {
+    position: relative;
+    z-index: 2;
+    padding: 20px 24px 0;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+  }
+  .progress-fill {
+    width: 35%;
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    position: relative;
+  }
+  .progress-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    position: absolute;
+    right: -6px;
+    top: -4.5px;
+    box-shadow: 0 0 8px rgba(255,71,87,0.4);
+  }
+  .progress-times {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  /* Player Controls */
+  .player-controls {
+    position: relative;
+    z-index: 2;
+    padding: 20px 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+  }
+  .ctrl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+    opacity: 0.8;
+  }
+  .ctrl-btn:active { transform: scale(0.9); }
+  .ctrl-btn.play-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--primary);
+    font-size: 28px;
+    opacity: 1;
+    box-shadow: 0 4px 16px rgba(255,71,87,0.3);
+  }
+  .ctrl-btn.secondary {
+    font-size: 24px;
+  }
+  .ctrl-btn.tertiary {
+    font-size: 20px;
+    opacity: 0.6;
+  }
+
+  /* Player Actions */
+  .player-actions {
+    position: relative;
+    z-index: 2;
+    padding: 20px 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 20px;
+    opacity: 0.7;
+  }
+  .action-btn span {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  /* ===== FULL PLAYER - LYRICS VIEW ===== */
+  .lyrics-view {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 10px;
+    bottom: 101px;
+    z-index: 10;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    padding: 12px 20px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    border-radius: 16px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .lyrics-view::-webkit-scrollbar {
+    display: none;
+  }
+  .lyrics-view.show {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .lyrics-scroll {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    padding-bottom: 20px;
+  }
+  .lyrics-view .player-header,
+  .similar-view .player-header {
+    display: none;
+  }
+  .lyrics-line {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    line-height: 2;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .lyrics-line.active {
+    font-size: 16px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* ===== SIMILAR VIEW ===== */
+  .similar-view {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 10px;
+    bottom: 101px;
+    z-index: 10;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    border-radius: 16px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .similar-view::-webkit-scrollbar {
+    display: none;
+  }
+  .similar-view.show {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .similar-header {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  /* ===== FAVORITES PAGE ===== */
+  .fav-header {
+    padding: 12px 20px 0;
+  }
+  .fav-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .fav-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 12px;
+    padding: 0 20px;
+  }
+  .fav-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .fav-stat .num { color: var(--primary); font-weight: 700; font-size: 16px; }
+  .fav-tabs {
+    display: flex;
+    gap: 24px;
+    padding: 20px 20px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .fav-tab {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding-bottom: 12px;
+    cursor: pointer;
+    position: relative;
+  }
+  .fav-tab.active {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .fav-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 1px;
+  }
+
+  /* ===== SEARCH PAGE ===== */
+  .search-page-header {
+    padding: 12px 20px 0;
+  }
+  .search-page-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .search-input-wrap input {
+    flex: 1;
+    height: 42px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 0 16px;
+    outline: none;
+  }
+  .search-input-wrap input:focus { border-color: var(--primary); }
+  .search-cancel {
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .search-tabs {
+    display: flex;
+    gap: 0;
+    padding: 16px 20px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .search-tab {
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding-bottom: 12px;
+    cursor: pointer;
+    position: relative;
+  }
+  .search-tab.active {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .search-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 30%;
+    right: 30%;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 1px;
+  }
+  .search-hot {
+    padding: 20px;
+  }
+  .search-hot h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .hot-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hot-tag {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /* ===== ARTIST PAGE ===== */
+  .artist-list {
+    padding: 0 20px;
+  }
+  .artist-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    cursor: pointer;
+  }
+  .artist-item + .artist-item {
+    border-top: 0.5px solid var(--border);
+  }
+  .artist-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    flex-shrink: 0;
+  }
+  .artist-name {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .artist-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ===== ALBUM PAGE ===== */
+  .album-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 0 20px;
+  }
+  .album-grid-item .cover {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: var(--bg-elevated);
+  }
+  .album-grid-item .title {
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .album-grid-item .artist {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ===== SETTINGS PAGE ===== */
+  .settings-section {
+    padding: 0 20px;
+    margin-top: 24px;
+  }
+  .settings-section .section-title {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .settings-card {
+    background: var(--bg-card);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .settings-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+  }
+  .settings-item + .settings-item {
+    border-top: 0.5px solid var(--border);
+  }
+  .settings-item .si-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .settings-item .si-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+  .settings-item .si-label {
+    font-size: 15px;
+  }
+  .settings-item .si-value {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .settings-item .si-arrow {
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+
+  /* Server Info Card */
+  .server-info-card {
+    background: var(--bg-card);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 12px;
+  }
+  .server-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+  .server-info-row + .server-info-row {
+    border-top: 0.5px solid var(--border);
+  }
+  .server-info-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .server-info-value {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Storage Bar */
+  .storage-bar {
+    height: 8px;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .storage-fill {
+    height: 100%;
+    width: 35%;
+    background: linear-gradient(90deg, var(--primary), var(--accent-orange));
+    border-radius: 4px;
+  }
+
+  /* Page Title for sub-pages */
+  .page-title-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+  }
+  .page-title-bar .back-btn {
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .page-title-bar h1 {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /* ===== PAGE TRANSITIONS ===== */
+  .page[data-page] { display: none; }
+  .page[data-page].active { display: block; }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: absolute;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(40,40,40,0.95);
+    backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 300;
+    display: none;
+    white-space: nowrap;
+  }
+  .toast.show { display: block; animation: fadeInUp 0.3s; }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  /* ===== PLAYLIST MODAL ===== */
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 250;
+    display: none;
+    align-items: flex-end;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-sheet {
+    width: 100%;
+    background: var(--bg-card);
+    border-radius: 16px 16px 0 0;
+    padding: 20px;
+    max-height: 60%;
+    overflow-y: auto;
+  }
+  .modal-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--text-tertiary);
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .modal-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    cursor: pointer;
+  }
+  .modal-item + .modal-item { border-top: 0.5px solid var(--border); }
+  .modal-item .mi-icon { font-size: 20px; }
+  .modal-item .mi-text { font-size: 14px; }
+  .modal-item .mi-desc { font-size: 12px; color: var(--text-secondary); }
+
+  /* ===== DESIGN DOC OVERLAY ===== */
+  .design-doc {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+  .design-doc h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
+  }
+  .design-doc .subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+    margin-bottom: 40px;
+  }
+  .design-section {
+    margin-bottom: 48px;
+  }
+  .design-section h2 {
+    font-size: 22px;
+    margin-bottom: 8px;
+    color: var(--primary);
+  }
+  .design-section p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+  .design-grid {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    padding-bottom: 16px;
+  }
+  .design-grid::-webkit-scrollbar { height: 4px; }
+  .design-grid::-webkit-scrollbar-track { background: var(--bg-card); border-radius: 2px; }
+  .design-grid::-webkit-scrollbar-thumb { background: var(--text-tertiary); border-radius: 2px; }
+
+  .mockup-label {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+  }
+  .color-palette {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .color-swatch {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-end;
+    padding: 6px;
+    font-size: 10px;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .feature-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .feature-card .fc-icon { font-size: 28px; margin-bottom: 12px; }
+  .feature-card .fc-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .feature-card .fc-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+  /* Screen Switcher */
+  .screen-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .screen-btn {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .screen-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  /* Timer Modal */
+  .timer-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .timer-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .timer-option .to-icon { font-size: 18px; opacity: 0.5; }
+
+  /* Playing List Sheet */
+  .playing-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    cursor: pointer;
+  }
+  .playing-list-item.playing .pli-title { color: var(--primary); }
+  .playing-list-item + .playing-list-item { border-top: 0.5px solid var(--border); }
+  .playing-list-item .pli-num {
+    width: 24px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+  .playing-list-item .pli-info { flex: 1; min-width: 0; }
+  .playing-list-item .pli-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .playing-list-item .pli-artist {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== DESIGN DOCUMENT ==================== -->
+<div class="design-doc" id="designDoc">
+
+  <h1>🎵 乐宸音乐 UI 设计方案</h1>
+  <p class="subtitle">乐宸音乐 · Navidrome Android 音乐播放器 · 参考 QQ音乐 / 网易云音乐 / 酷我音乐 设计语言</p>
+
+  <!-- Design System -->
+  <div class="design-section">
+    <h2>🎨 设计系统</h2>
+    <p>采用深色主题，主色调为活力红，搭配多色辅助色系。深色背景减少视觉疲劳，突出音乐内容本身。</p>
+
+    <div class="color-palette">
+      <div class="color-swatch" style="background: #FF4757;">#FF4757<br>主色</div>
+      <div class="color-swatch" style="background: #0E0E0E; border: 1px solid #333;">#0E0E0E<br>背景</div>
+      <div class="color-swatch" style="background: #1A1A1A; border: 1px solid #333;">#1A1A1A<br>卡片</div>
+      <div class="color-swatch" style="background: #2ED573;">#2ED573<br>成功</div>
+      <div class="color-swatch" style="background: #5352ED;">#5352ED<br>链接</div>
+      <div class="color-swatch" style="background: #FFA502;">#FFA502<br>提醒</div>
+      <div class="color-swatch" style="background: #A55EEA;">#A55EEA<br>电台</div>
+    </div>
+  </div>
+
+  <!-- Screen Switcher -->
+  <div class="design-section">
+    <h2>📱 页面预览</h2>
+    <p>点击下方按钮切换查看各个页面的UI设计。每个页面都是可交互的原型。</p>
+
+    <div class="screen-switcher" id="screenSwitcher">
+      <div class="screen-btn active" data-screen="login">登录页</div>
+      <div class="screen-btn" data-screen="home">首页</div>
+      <div class="screen-btn" data-screen="player">播放页</div>
+      <div class="screen-btn" data-screen="favorites">收藏页</div>
+      <div class="screen-btn" data-screen="search">搜索页</div>
+      <div class="screen-btn" data-screen="artists">歌手页</div>
+      <div class="screen-btn" data-screen="albums">专辑页</div>
+      <div class="screen-btn" data-screen="settings">设置页</div>
+    </div>
+  </div>
+
+  <!-- Phone Mockups -->
+  <div class="design-grid" id="phoneGrid">
+
+    <!-- LOGIN -->
+    <div class="phone-mockup" data-mockup="login">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar">
+          <span>0:38</span>
+          <span>📶 🔋</span>
+        </div>
+        <div class="login-page">
+          <div class="login-logo">🎵</div>
+          <div class="login-title">乐宸音乐</div>
+          <div class="login-subtitle">连接你的 Navidrome 音乐服务器</div>
+          <div class="input-group">
+            <label>服务器地址</label>
+            <input type="text" placeholder="https://your-server.com" />
+          </div>
+          <div class="input-group">
+            <label>用户名</label>
+            <input type="text" placeholder="输入用户名" />
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input type="password" placeholder="输入密码" />
+          </div>
+          <button class="login-btn">登 录</button>
+          <div class="login-remember">
+            <span>📌 记住服务器地址</span>
+            <span style="color: var(--primary);">自动登录</span>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">登录页</div>
+    </div>
+
+    <!-- HOME -->
+    <div class="phone-mockup" data-mockup="home" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar">
+          <span>0:38</span>
+          <span>📶 🔋</span>
+        </div>
+        <div class="page active" data-page="home">
+          <div class="home-header">
+            <h1>乐宸音乐</h1>
+            <div class="header-actions">
+              <div class="header-btn">⚙️</div>
+            </div>
+          </div>
+
+          <div class="search-bar" onclick="switchScreen('search')">
+            <span>🔍</span>
+            <span>搜索歌曲、歌手、专辑</span>
+          </div>
+
+          <!-- 最新专辑 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>🆕 最新专辑</h2>
+              <div class="more-btn">更多 ›</div>
+            </div>
+            <div class="h-scroll">
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+                <div class="title">夜曲</div>
+                <div class="artist">周杰伦</div>
+              </div>
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #f093fb, #f5576c);"></div>
+                <div class="title">十一月的肖邦</div>
+                <div class="artist">周杰伦</div>
+              </div>
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"></div>
+                <div class="title">范特西</div>
+                <div class="artist">周杰伦</div>
+              </div>
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"></div>
+                <div class="title">叶惠美</div>
+                <div class="artist">周杰伦</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 每日推荐 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>🎯 每日推荐</h2>
+              <div class="more-btn">换一批 ↻</div>
+            </div>
+            <div class="daily-cards">
+              <div class="daily-card">
+                <div class="daily-bg" style="background: linear-gradient(135deg, #FF4757, #FF6B81);"></div>
+                <div class="daily-num">01</div>
+                <div class="daily-info">
+                  <div class="daily-title">晴天</div>
+                  <div class="daily-sub">周杰伦</div>
+                </div>
+              </div>
+              <div class="daily-card">
+                <div class="daily-bg" style="background: linear-gradient(135deg, #5352ED, #7C7CF8);"></div>
+                <div class="daily-num">02</div>
+                <div class="daily-info">
+                  <div class="daily-title">稻香</div>
+                  <div class="daily-sub">周杰伦</div>
+                </div>
+              </div>
+              <div class="daily-card">
+                <div class="daily-bg" style="background: linear-gradient(135deg, #2ED573, #7BED9F);"></div>
+                <div class="daily-num">03</div>
+                <div class="daily-info">
+                  <div class="daily-title">七里香</div>
+                  <div class="daily-sub">周杰伦</div>
+                </div>
+              </div>
+              <div class="daily-card">
+                <div class="daily-bg" style="background: linear-gradient(135deg, #FFA502, #FFD43B);"></div>
+                <div class="daily-num">04</div>
+                <div class="daily-info">
+                  <div class="daily-title">告白气球</div>
+                  <div class="daily-sub">周杰伦</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 最近播放 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>⏱️ 最近播放</h2>
+              <div class="more-btn">更多 ›</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+              <div class="recent-info">
+                <div class="recent-title">夜曲</div>
+                <div class="recent-artist">周杰伦 · 十一月的肖邦</div>
+              </div>
+              <div class="recent-duration">4:23</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #f093fb, #f5576c);"></div>
+              <div class="recent-info">
+                <div class="recent-title">晴天</div>
+                <div class="recent-artist">周杰伦 · 叶惠美</div>
+              </div>
+              <div class="recent-duration">4:29</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"></div>
+              <div class="recent-info">
+                <div class="recent-title">稻香</div>
+                <div class="recent-artist">周杰伦 · 魔杰座</div>
+              </div>
+              <div class="recent-duration">3:42</div>
+            </div>
+          </div>
+
+          <!-- 随机专辑 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>🎲 随机专辑</h2>
+              <div class="more-btn">换一批 ↻</div>
+            </div>
+            <div class="h-scroll">
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);"></div>
+                <div class="title">我很忙</div>
+                <div class="artist">周杰伦</div>
+              </div>
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #ffecd2, #fcb69f);"></div>
+                <div class="title">八度空间</div>
+                <div class="artist">周杰伦</div>
+              </div>
+              <div class="album-card">
+                <div class="cover" style="background: linear-gradient(135deg, #a1c4fd, #c2e9fb);"></div>
+                <div class="title">跨时代</div>
+                <div class="artist">周杰伦</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 歌单 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>📋 歌单</h2>
+              <div class="more-btn">更多 ›</div>
+            </div>
+            <div class="playlist-grid">
+              <div class="playlist-item">
+                <div class="playlist-cover" style="background: linear-gradient(135deg, #FF4757, #FF6B81);">
+                  <div class="gradient-overlay"></div>
+                </div>
+                <div class="playlist-name">我的最爱</div>
+                <div class="playlist-count">32首</div>
+              </div>
+              <div class="playlist-item">
+                <div class="playlist-cover" style="background: linear-gradient(135deg, #5352ED, #7C7CF8);">
+                  <div class="gradient-overlay"></div>
+                </div>
+                <div class="playlist-name">深夜听歌</div>
+                <div class="playlist-count">18首</div>
+              </div>
+              <div class="playlist-item">
+                <div class="playlist-cover" style="background: linear-gradient(135deg, #2ED573, #7BED9F);">
+                  <div class="gradient-overlay"></div>
+                </div>
+                <div class="playlist-name">运动健身</div>
+                <div class="playlist-count">25首</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 电台 -->
+          <div class="section">
+            <div class="section-header">
+              <h2>📻 电台</h2>
+              <div class="more-btn">更多 ›</div>
+            </div>
+            <div class="h-scroll">
+              <div class="radio-card">
+                <div class="radio-icon">📻</div>
+                <div class="radio-info">
+                  <div class="radio-name">华语经典</div>
+                  <div class="radio-desc">经典华语金曲</div>
+                </div>
+              </div>
+              <div class="radio-card">
+                <div class="radio-icon" style="background: linear-gradient(135deg, var(--accent-purple), #C471F5);">🎸</div>
+                <div class="radio-info">
+                  <div class="radio-name">摇滚电台</div>
+                  <div class="radio-desc">永不褪色的摇滚</div>
+                </div>
+              </div>
+              <div class="radio-card">
+                <div class="radio-icon" style="background: linear-gradient(135deg, var(--accent-blue), #7C7CF8);">🎹</div>
+                <div class="radio-info">
+                  <div class="radio-name">轻音乐</div>
+                  <div class="radio-desc">放松身心的旋律</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="height: 100px;"></div>
+        </div>
+
+        <!-- Mini Player -->
+        <div class="mini-player" onclick="switchScreen('player')">
+          <div class="mini-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+          <div class="mini-info">
+            <div class="mini-title">夜曲</div>
+            <div class="mini-artist">周杰伦</div>
+          </div>
+          <div class="mini-controls">
+            <div class="mini-btn">⏮</div>
+            <div class="mini-btn">▶️</div>
+            <div class="mini-btn">⏭</div>
+          </div>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+          <div class="tab-item active" onclick="switchTab(this, 'home')">
+            <span class="tab-icon">🏠</span>
+            <span class="tab-label">首页</span>
+          </div>
+          <div class="tab-item" onclick="switchTab(this, 'favorites')">
+            <span class="tab-icon">❤️</span>
+            <span class="tab-label">收藏</span>
+          </div>
+          <div class="tab-item" onclick="switchTab(this, 'search')">
+            <span class="tab-icon">🔍</span>
+            <span class="tab-label">搜索</span>
+          </div>
+          <div class="tab-item" onclick="switchTab(this, 'artists')">
+            <span class="tab-icon">👤</span>
+            <span class="tab-label">歌手</span>
+          </div>
+          <div class="tab-item" onclick="switchTab(this, 'albums')">
+            <span class="tab-icon">💿</span>
+            <span class="tab-label">专辑</span>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">首页</div>
+    </div>
+
+    <!-- PLAYER -->
+    <div class="phone-mockup" data-mockup="player" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar">
+          <span>0:38</span>
+          <span>📶 🔋</span>
+        </div>
+        <div class="player-page show">
+          <div class="player-bg"></div>
+          <div class="player-header">
+            <div class="close-btn" onclick="switchScreen('home')">▼</div>
+            <div class="player-source">正在播放</div>
+            <div class="close-btn">⋯</div>
+          </div>
+
+          <div class="player-info">
+            <div class="player-song-title">夜曲</div>
+            <div class="player-album-name">周杰伦 · 十一月的肖邦</div>
+          </div>
+
+          <div class="player-cover-wrapper">
+            <div class="player-cover-area">
+              <div class="cover-container">
+                <div class="cover-img" style="background: linear-gradient(135deg, #667eea, #764ba2);">🎵</div>
+              </div>
+            </div>
+
+            <!-- Lyrics View (slides in over cover area) -->
+            <div class="lyrics-view" id="lyricsView">
+              <div class="lyrics-scroll">
+                <div class="lyrics-line">一群嗜血的蚂蚁</div>
+                <div class="lyrics-line">被腐肉所吸引</div>
+                <div class="lyrics-line">我面无表情</div>
+                <div class="lyrics-line">看孤独的风景</div>
+                <div class="lyrics-line active">失去你 爱恨开始计时</div>
+                <div class="lyrics-line">残缺的玻璃</div>
+                <div class="lyrics-line">因为你的离去</div>
+                <div class="lyrics-line">而有了裂痕</div>
+                <div class="lyrics-line">走在寒冷的街</div>
+                <div class="lyrics-line">路灯下的影子</div>
+                <div class="lyrics-line">拉长了寂寞</div>
+                <div class="lyrics-line">一转身的你</div>
+                <div class="lyrics-line">消失在人海里</div>
+                <div class="lyrics-line">我还在原地</div>
+                <div class="lyrics-line">等你回来</div>
+              </div>
+            </div>
+
+            <!-- Similar/Recommended View (slides in over cover area) -->
+            <div class="similar-view" id="similarView">
+              <div class="similar-header">推荐歌曲</div>
+              <div class="recent-item">
+                <div class="recent-cover" style="background: linear-gradient(135deg, #f093fb, #f5576c);"></div>
+                <div class="recent-info">
+                  <div class="recent-title">晴天</div>
+                  <div class="recent-artist">周杰伦</div>
+                </div>
+              </div>
+              <div class="recent-item">
+                <div class="recent-cover" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"></div>
+                <div class="recent-info">
+                  <div class="recent-title">七里香</div>
+                  <div class="recent-artist">周杰伦</div>
+                </div>
+              </div>
+              <div class="recent-item">
+                <div class="recent-cover" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"></div>
+                <div class="recent-info">
+                  <div class="recent-title">简单爱</div>
+                  <div class="recent-artist">周杰伦</div>
+                </div>
+              </div>
+              <div class="recent-item">
+                <div class="recent-cover" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);"></div>
+                <div class="recent-info">
+                  <div class="recent-title">稻香</div>
+                  <div class="recent-artist">周杰伦</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabs: always visible -->
+            <div class="cover-tabs">
+              <div class="cover-tab active" onclick="switchCoverView('cover')">封面</div>
+              <div class="cover-tab" onclick="switchCoverView('lyrics')">歌词</div>
+              <div class="cover-tab" onclick="switchCoverView('similar')">推荐</div>
+            </div>
+          </div>
+
+          <div class="player-progress">
+            <div class="progress-bar">
+              <div class="progress-fill">
+                <div class="progress-thumb"></div>
+              </div>
+            </div>
+            <div class="progress-times">
+              <span>1:32</span>
+              <span>4:23</span>
+            </div>
+          </div>
+
+          <div class="player-controls">
+            <div class="ctrl-btn tertiary">🔁</div>
+            <div class="ctrl-btn secondary">⏮</div>
+            <div class="ctrl-btn play-btn">▶</div>
+            <div class="ctrl-btn secondary">⏭</div>
+            <div class="ctrl-btn tertiary">📋</div>
+          </div>
+
+          <div class="player-actions">
+            <div class="action-btn">❤️<span>收藏</span></div>
+            <div class="action-btn">➕<span>添加到</span></div>
+            <div class="action-btn">⏰<span>定时</span></div>
+          </div>
+        </div>
+
+        <!-- More Menu Modal -->
+        <div class="modal-overlay" id="moreModal">
+          <div class="modal-sheet">
+            <div class="modal-handle"></div>
+            <div class="modal-title">更多操作</div>
+            <div class="modal-item">
+              <span class="mi-icon">➕</span>
+              <div>
+                <div class="mi-text">添加到歌单</div>
+              </div>
+            </div>
+            <div class="modal-item">
+              <span class="mi-icon">⏰</span>
+              <div>
+                <div class="mi-text">定时停止播放</div>
+                <div class="mi-desc">15分钟 · 30分钟 · 1小时 · 2小时</div>
+              </div>
+            </div>
+            <div class="modal-item">
+              <span class="mi-icon">⬇️</span>
+              <div>
+                <div class="mi-text">下载</div>
+              </div>
+            </div>
+            <div class="modal-item">
+              <span class="mi-icon">📤</span>
+              <div>
+                <div class="mi-text">分享</div>
+              </div>
+            </div>
+            <div class="modal-item">
+              <span class="mi-icon">🎤</span>
+              <div>
+                <div class="mi-text">查看歌手</div>
+              </div>
+            </div>
+            <div class="modal-item">
+              <span class="mi-icon">💿</span>
+              <div>
+                <div class="mi-text">查看专辑</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">播放页（封面/歌词/推荐歌曲三个视图，左右滑动切换）</div>
+    </div>
+
+    <!-- FAVORITES -->
+    <div class="phone-mockup" data-mockup="favorites" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar"><span>0:38</span><span>📶 🔋</span></div>
+        <div class="page active">
+          <div class="fav-header">
+            <h1>我的收藏</h1>
+          </div>
+          <div class="fav-stats">
+            <div class="fav-stat"><span class="num">128</span> 首歌曲</div>
+            <div class="fav-stat"><span class="num">12</span> 张专辑</div>
+            <div class="fav-stat"><span class="num">5</span> 位歌手</div>
+          </div>
+          <div class="fav-tabs">
+            <div class="fav-tab active">歌曲</div>
+            <div class="fav-tab">专辑</div>
+            <div class="fav-tab">歌手</div>
+            <div class="fav-tab">歌单</div>
+          </div>
+          <div style="padding: 12px 20px;">
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #FF4757, #FF6B81);"></div>
+              <div class="recent-info">
+                <div class="recent-title">夜曲</div>
+                <div class="recent-artist">周杰伦 · 十一月的肖邦</div>
+              </div>
+              <div class="recent-duration">4:23</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #5352ED, #7C7CF8);"></div>
+              <div class="recent-info">
+                <div class="recent-title">晴天</div>
+                <div class="recent-artist">周杰伦 · 叶惠美</div>
+              </div>
+              <div class="recent-duration">4:29</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #2ED573, #7BED9F);"></div>
+              <div class="recent-info">
+                <div class="recent-title">稻香</div>
+                <div class="recent-artist">周杰伦 · 魔杰座</div>
+              </div>
+              <div class="recent-duration">3:42</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #FFA502, #FFD43B);"></div>
+              <div class="recent-info">
+                <div class="recent-title">告白气球</div>
+                <div class="recent-artist">周杰伦 · 周杰伦的床边故事</div>
+              </div>
+              <div class="recent-duration">3:35</div>
+            </div>
+            <div class="recent-item">
+              <div class="recent-cover" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);"></div>
+              <div class="recent-info">
+                <div class="recent-title">七里香</div>
+                <div class="recent-artist">周杰伦 · 七里香</div>
+              </div>
+              <div class="recent-duration">4:59</div>
+            </div>
+          </div>
+          <div style="height: 100px;"></div>
+        </div>
+        <div class="mini-player">
+          <div class="mini-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+          <div class="mini-info">
+            <div class="mini-title">夜曲</div>
+            <div class="mini-artist">周杰伦</div>
+          </div>
+          <div class="mini-controls">
+            <div class="mini-btn">⏮</div>
+            <div class="mini-btn">▶️</div>
+            <div class="mini-btn">⏭</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item" onclick="switchTab(this, 'home')"><span class="tab-icon">🏠</span><span class="tab-label">首页</span></div>
+          <div class="tab-item active" onclick="switchTab(this, 'favorites')"><span class="tab-icon">❤️</span><span class="tab-label">收藏</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'search')"><span class="tab-icon">🔍</span><span class="tab-label">搜索</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'artists')"><span class="tab-icon">👤</span><span class="tab-label">歌手</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'albums')"><span class="tab-icon">💿</span><span class="tab-label">专辑</span></div>
+        </div>
+      </div>
+      <div class="mockup-label">收藏页</div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="phone-mockup" data-mockup="search" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar"><span>0:38</span><span>📶 🔋</span></div>
+        <div class="page active">
+          <div class="search-page-header">
+            <h1>搜索</h1>
+            <div class="search-input-wrap">
+              <input type="text" placeholder="搜索歌曲、歌手、专辑" />
+              <span class="search-cancel">取消</span>
+            </div>
+          </div>
+          <div class="search-tabs">
+            <div class="search-tab active">歌曲</div>
+            <div class="search-tab">歌手</div>
+            <div class="search-tab">专辑</div>
+            <div class="search-tab">歌单</div>
+          </div>
+          <div class="search-hot">
+            <h3>🔥 热门搜索</h3>
+            <div class="hot-tags">
+              <div class="hot-tag">周杰伦</div>
+              <div class="hot-tag">林俊杰</div>
+              <div class="hot-tag">陈奕迅</div>
+              <div class="hot-tag">薛之谦</div>
+              <div class="hot-tag">邓紫棋</div>
+              <div class="hot-tag">五月天</div>
+              <div class="hot-tag">Taylor Swift</div>
+              <div class="hot-tag">周深</div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-header">
+              <h2>🕒 搜索历史</h2>
+              <div class="more-btn">清除</div>
+            </div>
+            <div class="hot-tags">
+              <div class="hot-tag">夜曲</div>
+              <div class="hot-tag">晴天</div>
+              <div class="hot-tag">稻香</div>
+            </div>
+          </div>
+          <div style="height: 100px;"></div>
+        </div>
+        <div class="mini-player">
+          <div class="mini-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+          <div class="mini-info">
+            <div class="mini-title">夜曲</div>
+            <div class="mini-artist">周杰伦</div>
+          </div>
+          <div class="mini-controls">
+            <div class="mini-btn">⏮</div>
+            <div class="mini-btn">▶️</div>
+            <div class="mini-btn">⏭</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item" onclick="switchTab(this, 'home')"><span class="tab-icon">🏠</span><span class="tab-label">首页</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'favorites')"><span class="tab-icon">❤️</span><span class="tab-label">收藏</span></div>
+          <div class="tab-item active" onclick="switchTab(this, 'search')"><span class="tab-icon">🔍</span><span class="tab-label">搜索</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'artists')"><span class="tab-icon">👤</span><span class="tab-label">歌手</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'albums')"><span class="tab-icon">💿</span><span class="tab-label">专辑</span></div>
+        </div>
+      </div>
+      <div class="mockup-label">搜索页</div>
+    </div>
+
+    <!-- ARTISTS -->
+    <div class="phone-mockup" data-mockup="artists" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar"><span>0:38</span><span>📶 🔋</span></div>
+        <div class="page active">
+          <div class="home-header">
+            <h1>歌手</h1>
+            <div class="header-actions">
+              <div class="header-btn">AZ</div>
+            </div>
+          </div>
+          <div class="search-bar">
+            <span>🔍</span>
+            <span>搜索歌手</span>
+          </div>
+          <div class="artist-list" style="margin-top: 16px;">
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #FF4757, #FF6B81); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">周杰伦</div>
+                <div class="artist-count">156 首歌曲 · 14 张专辑</div>
+              </div>
+            </div>
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #5352ED, #7C7CF8); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">林俊杰</div>
+                <div class="artist-count">98 首歌曲 · 8 张专辑</div>
+              </div>
+            </div>
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #2ED573, #7BED9F); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">陈奕迅</div>
+                <div class="artist-count">120 首歌曲 · 11 张专辑</div>
+              </div>
+            </div>
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #FFA502, #FFD43B); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">薛之谦</div>
+                <div class="artist-count">75 首歌曲 · 6 张专辑</div>
+              </div>
+            </div>
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">邓紫棋</div>
+                <div class="artist-count">62 首歌曲 · 5 张专辑</div>
+              </div>
+            </div>
+            <div class="artist-item">
+              <div class="artist-avatar" style="background: linear-gradient(135deg, #f093fb, #f5576c); border-radius: 50%;"></div>
+              <div>
+                <div class="artist-name">五月天</div>
+                <div class="artist-count">145 首歌曲 · 12 张专辑</div>
+              </div>
+            </div>
+          </div>
+          <div style="height: 100px;"></div>
+        </div>
+        <div class="mini-player">
+          <div class="mini-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+          <div class="mini-info">
+            <div class="mini-title">夜曲</div>
+            <div class="mini-artist">周杰伦</div>
+          </div>
+          <div class="mini-controls">
+            <div class="mini-btn">⏮</div>
+            <div class="mini-btn">▶️</div>
+            <div class="mini-btn">⏭</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item" onclick="switchTab(this, 'home')"><span class="tab-icon">🏠</span><span class="tab-label">首页</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'favorites')"><span class="tab-icon">❤️</span><span class="tab-label">收藏</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'search')"><span class="tab-icon">🔍</span><span class="tab-label">搜索</span></div>
+          <div class="tab-item active" onclick="switchTab(this, 'artists')"><span class="tab-icon">👤</span><span class="tab-label">歌手</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'albums')"><span class="tab-icon">💿</span><span class="tab-label">专辑</span></div>
+        </div>
+      </div>
+      <div class="mockup-label">歌手页</div>
+    </div>
+
+    <!-- ALBUMS -->
+    <div class="phone-mockup" data-mockup="albums" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar"><span>0:38</span><span>📶 🔋</span></div>
+        <div class="page active">
+          <div class="home-header">
+            <h1>专辑</h1>
+            <div class="header-actions">
+              <div class="header-btn">≡</div>
+            </div>
+          </div>
+          <div class="search-bar">
+            <span>🔍</span>
+            <span>搜索专辑</span>
+          </div>
+          <div class="album-grid" style="margin-top: 16px;">
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+              <div class="title">十一月的肖邦</div>
+              <div class="artist">周杰伦 · 2005</div>
+            </div>
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #f093fb, #f5576c);"></div>
+              <div class="title">叶惠美</div>
+              <div class="artist">周杰伦 · 2003</div>
+            </div>
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"></div>
+              <div class="title">范特西</div>
+              <div class="artist">周杰伦 · 2001</div>
+            </div>
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"></div>
+              <div class="title">七里香</div>
+              <div class="artist">周杰伦 · 2004</div>
+            </div>
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);"></div>
+              <div class="title">我很忙</div>
+              <div class="artist">周杰伦 · 2007</div>
+            </div>
+            <div class="album-grid-item">
+              <div class="cover" style="background: linear-gradient(135deg, #ffecd2, #fcb69f);"></div>
+              <div class="title">魔杰座</div>
+              <div class="artist">周杰伦 · 2008</div>
+            </div>
+          </div>
+          <div style="height: 100px;"></div>
+        </div>
+        <div class="mini-player">
+          <div class="mini-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+          <div class="mini-info">
+            <div class="mini-title">夜曲</div>
+            <div class="mini-artist">周杰伦</div>
+          </div>
+          <div class="mini-controls">
+            <div class="mini-btn">⏮</div>
+            <div class="mini-btn">▶️</div>
+            <div class="mini-btn">⏭</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item" onclick="switchTab(this, 'home')"><span class="tab-icon">🏠</span><span class="tab-label">首页</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'favorites')"><span class="tab-icon">❤️</span><span class="tab-label">收藏</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'search')"><span class="tab-icon">🔍</span><span class="tab-label">搜索</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'artists')"><span class="tab-icon">👤</span><span class="tab-label">歌手</span></div>
+          <div class="tab-item active" onclick="switchTab(this, 'albums')"><span class="tab-icon">💿</span><span class="tab-label">专辑</span></div>
+        </div>
+      </div>
+      <div class="mockup-label">专辑页</div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="phone-mockup" data-mockup="settings" style="display:none;">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="status-bar"><span>0:38</span><span>📶 🔋</span></div>
+        <div class="page active">
+          <div class="page-title-bar">
+            <span class="back-btn">‹</span>
+            <h1>设置</h1>
+          </div>
+
+          <!-- 服务器信息 -->
+          <div class="settings-section">
+            <div class="section-title">服务器信息</div>
+            <div class="server-info-card">
+              <div class="server-info-row">
+                <span class="server-info-label">服务器地址</span>
+                <span class="server-info-value">https://music.example.com</span>
+              </div>
+              <div class="server-info-row">
+                <span class="server-info-label">用户名</span>
+                <span class="server-info-value">admin</span>
+              </div>
+              <div class="server-info-row">
+                <span class="server-info-label">歌曲数量</span>
+                <span class="server-info-value">1,234 首</span>
+              </div>
+              <div class="server-info-row">
+                <span class="server-info-label">专辑数量</span>
+                <span class="server-info-value">89 张</span>
+              </div>
+              <div class="server-info-row">
+                <span class="server-info-label">歌单数量</span>
+                <span class="server-info-value">12 个</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 外观设置 -->
+          <div class="settings-section">
+            <div class="section-title">外观设置</div>
+            <div class="settings-card">
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(165,94,234,0.15);">🎨</div>
+                  <span class="si-label">深色模式</span>
+                </div>
+                <div class="theme-toggle-wrap">
+                  <div class="theme-toggle active" id="themeToggle" onclick="toggleTheme(this)"></div>
+                </div>
+              </div>
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(83,82,237,0.15);">🌈</div>
+                  <span class="si-label">主题色</span>
+                </div>
+                <span class="si-value">活力红 ›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 缓存设置 -->
+          <div class="settings-section">
+            <div class="section-title">缓存设置</div>
+            <div class="settings-card">
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(255,71,87,0.15);">💾</div>
+                  <span class="si-label">音乐缓存大小</span>
+                </div>
+                <span class="si-value">4 GB ›</span>
+              </div>
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(46,213,115,0.15);">📱</div>
+                  <span class="si-label">存储空间管理</span>
+                </div>
+                <span class="si-value">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 存储详情 -->
+          <div class="settings-section">
+            <div class="section-title">存储空间</div>
+            <div class="settings-card" style="padding: 16px;">
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+                <span>已使用 1.4 GB</span>
+                <span style="color:var(--text-secondary);">共 4 GB</span>
+              </div>
+              <div class="storage-bar">
+                <div class="storage-fill"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--text-secondary);">
+                <span>🎵 音乐缓存 1.2 GB</span>
+                <span>📦 其他数据 0.2 GB</span>
+              </div>
+              <div style="margin-top:16px; text-align:center;">
+                <div style="display:inline-block; padding:10px 24px; background:rgba(255,71,87,0.15); border-radius:10px; color:var(--primary); font-size:14px; font-weight:500; cursor:pointer;">
+                  🗑️ 清除缓存
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 账号 -->
+          <div class="settings-section">
+            <div class="section-title">账号</div>
+            <div class="settings-card">
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(83,82,237,0.15);">👤</div>
+                  <span class="si-label">当前账号</span>
+                </div>
+                <span class="si-value">admin ›</span>
+              </div>
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(255,165,2,0.15);">🔗</div>
+                  <span class="si-label">服务器地址</span>
+                </div>
+                <span class="si-value">music.example.com ›</span>
+              </div>
+              <div class="settings-item" style="justify-content: center;">
+                <span style="color: var(--primary); font-size: 14px; cursor:pointer;">切换服务器</span>
+              </div>
+              <div class="settings-item" style="justify-content: center;">
+                <span style="color: var(--text-tertiary); font-size: 14px; cursor:pointer;">退出登录</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 关于 -->
+          <div class="settings-section">
+            <div class="section-title">关于</div>
+            <div class="settings-card">
+              <div class="settings-item" onclick="showAboutPage()">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(46,213,115,0.15);">ℹ️</div>
+                  <span class="si-label">关于乐宸音乐</span>
+                </div>
+                <span class="si-value">›</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="height: 100px;"></div>
+        </div>
+
+        <!-- About Page (inside phone frame) -->
+        <div class="page about-page" data-page="about" style="display:none;">
+          <div class="page-title-bar">
+            <span class="back-btn" onclick="hideAboutPage()">‹</span>
+            <h1>关于</h1>
+          </div>
+          <div style="text-align:center; padding:24px 20px;">
+            <div style="width:72px; height:72px; background: linear-gradient(135deg, var(--primary), #FF6B81); border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:36px; margin:0 auto 16px;">🎵</div>
+            <div style="font-size:22px; font-weight:700; margin-bottom:4px;">乐宸音乐</div>
+            <div style="font-size:13px; color:var(--text-secondary); margin-bottom:28px;">v1.0.0</div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-card">
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(83,82,237,0.15);">📦</div>
+                  <span class="si-label">版本号</span>
+                </div>
+                <span class="si-value">v1.0.0</span>
+              </div>
+              <div class="settings-item">
+                <div class="si-left">
+                  <div class="si-icon" style="background: rgba(46,213,115,0.15);">🌐</div>
+                  <span class="si-label">官网</span>
+                </div>
+                <span class="si-value" style="color:var(--primary);">www.yueyoue.cn</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-bar">
+          <div class="tab-item" onclick="switchTab(this, 'home')"><span class="tab-icon">🏠</span><span class="tab-label">首页</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'favorites')"><span class="tab-icon">❤️</span><span class="tab-label">收藏</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'search')"><span class="tab-icon">🔍</span><span class="tab-label">搜索</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'artists')"><span class="tab-icon">👤</span><span class="tab-label">歌手</span></div>
+          <div class="tab-item" onclick="switchTab(this, 'albums')"><span class="tab-icon">💿</span><span class="tab-label">专辑</span></div>
+        </div>
+      </div>
+      <div class="mockup-label">设置页</div>
+    </div>
+
+  </div>
+
+  <!-- Feature Summary -->
+  <div class="design-section">
+    <h2>✨ 功能清单</h2>
+    <div class="feature-list">
+      <div class="feature-card">
+        <div class="fc-icon">🔐</div>
+        <div class="fc-title">服务器登录</div>
+        <div class="fc-desc">输入 Navidrome 服务器地址、用户名、密码进行登录。支持记住地址和自动登录。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">🏠</div>
+        <div class="fc-title">首页推荐</div>
+        <div class="fc-desc">最新专辑、每日推荐、最近播放、随机专辑、歌单、电台六大板块。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">🎵</div>
+        <div class="fc-title">全功能播放器</div>
+        <div class="fc-desc">大封面显示，左滑歌词，右滑推荐歌曲。支持随机/顺序/单曲循环三种播放模式。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">🔍</div>
+        <div class="fc-title">全局搜索</div>
+        <div class="fc-desc">搜索歌曲、歌手、专辑、歌单。支持热门搜索和搜索历史。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">❤️</div>
+        <div class="fc-title">收藏管理</div>
+        <div class="fc-desc">收藏歌曲、专辑、歌手、歌单。分类查看，快速访问。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">⏰</div>
+        <div class="fc-title">定时停止</div>
+        <div class="fc-desc">支持 15分钟、30分钟、1小时、2小时定时停止播放，适合睡前听歌。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">💾</div>
+        <div class="fc-title">缓存管理</div>
+        <div class="fc-desc">可设置 2/4/8/16GB 缓存大小，查看缓存占用，一键清除缓存。</div>
+      </div>
+      <div class="feature-card">
+        <div class="fc-icon">📋</div>
+        <div class="fc-title">歌单管理</div>
+        <div class="fc-desc">查看和管理 Navidrome 服务器上的歌单，添加歌曲到歌单。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="design-section">
+    <h2>🛠️ 技术方案</h2>
+    <p>
+      <strong>开发语言：</strong>Kotlin<br>
+      <strong>UI框架：</strong>Jetpack Compose (Material 3)<br>
+      <strong>架构：</strong>MVVM + Repository Pattern<br>
+      <strong>网络：</strong>Retrofit + OkHttp (Subsonic API)<br>
+      <strong>图片加载：</strong>Coil<br>
+      <strong>音频播放：</strong>ExoPlayer (Media3)<br>
+      <strong>本地存储：</strong>Room Database + DataStore<br>
+      <strong>缓存：</strong>自定义 LRU 缓存 + 文件缓存<br>
+      <strong>最低版本：</strong>Android 8.0 (API 26)<br>
+      <strong>目标版本：</strong>Android 14 (API 34)
+    </p>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // Screen Switcher
+  document.querySelectorAll('.screen-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const screen = btn.dataset.screen;
+      switchScreen(screen);
+    });
+  });
+
+  function switchScreen(screen) {
+    // Update buttons
+    document.querySelectorAll('.screen-btn').forEach(b => b.classList.remove('active'));
+    const targetBtn = document.querySelector(`.screen-btn[data-screen="${screen}"]`);
+    if (targetBtn) targetBtn.classList.add('active');
+
+    // Update mockups
+    document.querySelectorAll('.phone-mockup').forEach(m => m.style.display = 'none');
+    const targetMockup = document.querySelector(`.phone-mockup[data-mockup="${screen}"]`);
+    if (targetMockup) targetMockup.style.display = 'block';
+  }
+
+  function switchTab(el, page) {
+    const frame = el.closest('.phone-frame');
+    frame.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    showToast(frame, `切换到 ${page}`);
+  }
+
+  function showToast(frame, msg) {
+    let toast = frame.querySelector('.toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'toast';
+      frame.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1500);
+  }
+
+  // ===== About Page =====
+  function showAboutPage() {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="settings"]');
+    if (!phoneMockup) return;
+    const settingsPage = phoneMockup.querySelector('.page[data-page]');
+    const aboutPage = phoneMockup.querySelector('.about-page');
+    if (settingsPage) settingsPage.style.display = 'none';
+    if (aboutPage) aboutPage.style.display = 'block';
+  }
+
+  function hideAboutPage() {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="settings"]');
+    if (!phoneMockup) return;
+    const settingsPage = phoneMockup.querySelector('.page[data-page]');
+    const aboutPage = phoneMockup.querySelector('.about-page');
+    if (aboutPage) aboutPage.style.display = 'none';
+    if (settingsPage) settingsPage.style.display = 'block';
+  }
+
+  // ===== Cover View Tabs (封面/歌词/推荐) =====
+  function switchCoverView(view) {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="player"]');
+    if (!phoneMockup) return;
+    const lyricsView = phoneMockup.querySelector('.lyrics-view');
+    const similarView = phoneMockup.querySelector('.similar-view');
+    const tabs = phoneMockup.querySelectorAll('.cover-tab');
+
+    // Update tab active state
+    tabs.forEach(t => t.classList.remove('active'));
+    const viewMap = { 'cover': 0, 'lyrics': 1, 'similar': 2 };
+    if (tabs[viewMap[view]]) tabs[viewMap[view]].classList.add('active');
+
+    // Toggle views — cover area stays, lyrics/similar overlay on top
+    if (view === 'cover') {
+      lyricsView && lyricsView.classList.remove('show');
+      similarView && similarView.classList.remove('show');
+    } else if (view === 'lyrics') {
+      similarView && similarView.classList.remove('show');
+      lyricsView && lyricsView.classList.add('show');
+    } else if (view === 'similar') {
+      lyricsView && lyricsView.classList.remove('show');
+      similarView && similarView.classList.add('show');
+    }
+  }
+
+  // ===== Swipe Gesture for Player =====
+  function toggleLyrics(show) {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="player"]');
+    if (!phoneMockup) return;
+    if (show === undefined) {
+      const lyricsView = phoneMockup.querySelector('.lyrics-view');
+      show = !lyricsView || !lyricsView.classList.contains('show');
+    }
+    switchCoverView(show ? 'lyrics' : 'cover');
+  }
+
+  function toggleSimilar(show) {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="player"]');
+    if (!phoneMockup) return;
+    if (show === undefined) {
+      const similarView = phoneMockup.querySelector('.similar-view');
+      show = !similarView || !similarView.classList.contains('show');
+    }
+    switchCoverView(show ? 'similar' : 'cover');
+  }
+
+  // Attach swipe gestures to player page
+  (function initSwipe() {
+    const phoneMockup = document.querySelector('.phone-mockup[data-mockup="player"]');
+    if (!phoneMockup) return;
+    const playerPage = phoneMockup.querySelector('.player-page');
+    const lyricsView = phoneMockup.querySelector('.lyrics-view');
+    const similarView = phoneMockup.querySelector('.similar-view');
+    if (!playerPage) return;
+
+    let startX = 0, startY = 0, tracking = false;
+
+    function handleSwipe(dx, dy) {
+      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      const isLyricsOpen = lyricsView && lyricsView.classList.contains('show');
+      const isSimilarOpen = similarView && similarView.classList.contains('show');
+      if (isLyricsOpen) {
+        // Lyrics open: swipe right to close
+        if (dx > 0) toggleLyrics(false);
+      } else if (isSimilarOpen) {
+        // Similar open: swipe left to close
+        if (dx < 0) toggleSimilar(false);
+      } else {
+        // Player main: left→lyrics, right→similar
+        if (dx < 0) { toggleLyrics(true); }
+        else { toggleSimilar(true); }
+      }
+    }
+
+    // Touch on player page + lyrics/similar views
+    [playerPage, lyricsView, similarView].forEach(el => {
+      if (!el) return;
+      el.addEventListener('touchstart', function(e) {
+        const t = e.touches[0];
+        startX = t.clientX; startY = t.clientY; tracking = true;
+      }, { passive: true });
+      el.addEventListener('touchend', function(e) {
+        if (!tracking) return; tracking = false;
+        const t = e.changedTouches[0];
+        handleSwipe(t.clientX - startX, t.clientY - startY);
+      }, { passive: true });
+      el.addEventListener('mousedown', function(e) {
+        mouseDown = true; mouseStartX = e.clientX; mouseStartY = e.clientY;
+      });
+      el.addEventListener('mouseup', function(e) {
+        if (!mouseDown) return; mouseDown = false;
+        handleSwipe(e.clientX - mouseStartX, e.clientY - mouseStartY);
+      });
+    });
+
+    let mouseDown = false, mouseStartX = 0, mouseStartY = 0;
+  })();
+
+  // Theme Toggle
+  function toggleTheme(el) {
+    el.classList.toggle('active');
+    const isDark = el.classList.contains('active');
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    // Update all phone frames to match
+    document.querySelectorAll('.phone-frame').forEach(frame => {
+      frame.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    });
+  }
+
+  // Initialize theme from localStorage
+  (function() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    if (saved === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.querySelectorAll('.phone-frame').forEach(f => f.setAttribute('data-theme', 'light'));
+      const toggle = document.getElementById('themeToggle');
+      if (toggle) toggle.classList.remove('active');
+    }
+  })();
+
+  // Initialize - show login
+  switchScreen('login');
+</script>
+
+</body>
+</html>
