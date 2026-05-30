@@ -303,6 +303,9 @@ object UpdateChecker {
             .url(apkUrl)
             .header("Accept-Encoding", "identity")
             .header("User-Agent", "LeChenMusic/1.0")
+            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+            .header("Pragma", "no-cache")
+            .cacheControl(CacheControl.FORCE_NETWORK)
             .build()
 
         val response = try {
@@ -312,6 +315,27 @@ object UpdateChecker {
             throw e
         }
 
+        if (response.code == 416) {
+            // 416 Range Not Satisfiable - retry without Range header
+            Log.w(TAG, "Got 416, retrying without Range header")
+            response.close()
+            val freshRequest = Request.Builder()
+                .url(apkUrl)
+                .header("Accept-Encoding", "identity")
+                .header("User-Agent", "LeChenMusic/1.0")
+                .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .build()
+            val freshResponse = client.newCall(freshRequest).execute()
+            if (!freshResponse.isSuccessful) {
+                val errMsg = "HTTP ${freshResponse.code}: ${freshResponse.message}"
+                Log.e(TAG, "Retry failed: $errMsg")
+                freshResponse.close()
+                throw IOException(errMsg)
+            }
+            return downloadFromResponse(freshResponse, apkFile, onProgress)
+        }
+
         if (!response.isSuccessful) {
             val errMsg = "HTTP ${response.code}: ${response.message}"
             Log.e(TAG, "HTTP error: $errMsg")
@@ -319,6 +343,14 @@ object UpdateChecker {
             throw IOException(errMsg)
         }
 
+        return downloadFromResponse(response, apkFile, onProgress)
+    }
+
+    private suspend fun downloadFromResponse(
+        response: okhttp3.Response,
+        apkFile: File,
+        onProgress: ((String) -> Unit)? = null
+    ): File? {
         val body = response.body ?: run {
             response.close()
             throw IOException("Response body is null")
@@ -360,13 +392,27 @@ object UpdateChecker {
             response.close()
         }
 
-        return if (apkFile.exists() && apkFile.length() > 0) {
-            Log.d(TAG, "Download complete: ${apkFile.length()} bytes")
-            apkFile
-        } else {
-            Log.e(TAG, "Invalid file: exists=${apkFile.exists()}, size=${apkFile.length()}")
-            null
+        if (!apkFile.exists() || apkFile.length() < 100_000L) {
+            Log.e(TAG, "Downloaded file too small or missing: ${apkFile.length()} bytes")
+            if (apkFile.exists()) apkFile.delete()
+            return null
         }
+
+        // Verify APK magic bytes (PK ZIP header)
+        try {
+            val header = ByteArray(2)
+            apkFile.inputStream().use { it.read(header) }
+            if (header[0] != 0x50.toByte() || header[1] != 0x4B.toByte()) {
+                Log.e(TAG, "Invalid APK file: not a ZIP archive (header: ${header[0]}, ${header[1]})")
+                apkFile.delete()
+                return null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to verify APK header: ${e.message}")
+        }
+
+        Log.d(TAG, "Download complete: ${apkFile.length()} bytes")
+        return apkFile
     }
 
     fun installApk(context: Context, apkFile: File): Boolean {

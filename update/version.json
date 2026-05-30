@@ -1,6 +1,6 @@
 {
-  "versionCode": 23,
-  "versionName": "1.2.3",
+  "versionCode": 24,
+  "versionName": "1.2.4",
   "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
-  "updateLog": "1. 修复更新下载问题（修复HTTP协议协商）\n2. 优化下载错误提示"
+  "updateLog": "1. 版本更新至 v1.2.4\n2. 修复下载416错误，优化更新稳定性"
 }
