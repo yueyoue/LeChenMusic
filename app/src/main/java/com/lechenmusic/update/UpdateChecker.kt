@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.CacheControl
+import okhttp3.ConnectionPool
 import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -210,14 +211,15 @@ object UpdateChecker {
 
             Log.d(TAG, "=== Starting download from: $apkUrl ===")
 
-            // === 第一步：标准下载（HTTP/1.1 + 系统证书） ===
+            // === 第一步：标准下载（每次用全新 client） ===
             for (attempt in 1..3) {
                 val attemptMsg = if (attempt == 1) "正在下载..." else "重试中 ($attempt/3)..."
                 withContext(Dispatchers.Main) { onProgress?.invoke(attemptMsg) }
                 Log.d(TAG, "Standard download attempt $attempt/3")
 
+                val freshClient = newFreshClient()
                 try {
-                    val result = downloadFile(downloadClient, apkFile, apkUrl, onProgress)
+                    val result = downloadFile(freshClient, apkFile, apkUrl, onProgress)
                     if (result != null) {
                         Log.d(TAG, "✅ Standard download succeeded, size=${result.length()}")
                         return@withContext result
@@ -228,6 +230,9 @@ object UpdateChecker {
                     withContext(Dispatchers.Main) {
                         onProgress?.invoke("下载失败 ($errDetail)")
                     }
+                } finally {
+                    freshClient.dispatcher.executorService.shutdown()
+                    freshClient.connectionPool.evictAll()
                 }
 
                 if (apkFile.exists()) apkFile.delete()
@@ -292,6 +297,34 @@ object UpdateChecker {
         }
     }
 
+    /**
+     * 构建完全干净的请求 —— 不带任何 Range 头，不走缓存
+     */
+    private fun buildFreshRequest(apkUrl: String): Request {
+        return Request.Builder()
+            .url(apkUrl)
+            .header("Accept-Encoding", "identity")
+            .header("User-Agent", "LeChenMusic/1.0")
+            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+            .header("Pragma", "no-cache")
+            .header("Connection", "close")
+            .cacheControl(CacheControl.FORCE_NETWORK)
+            .build()
+    }
+
+    /**
+     * 创建一个全新的 OkHttpClient（独立连接池，不受旧连接影响）
+     */
+    private fun newFreshClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
+            .build()
+    }
+
     private suspend fun downloadFile(
         client: OkHttpClient,
         apkFile: File,
@@ -299,14 +332,9 @@ object UpdateChecker {
         onProgress: ((String) -> Unit)? = null
     ): File? {
         Log.d(TAG, "downloadFile: $apkUrl")
-        val request = Request.Builder()
-            .url(apkUrl)
-            .header("Accept-Encoding", "identity")
-            .header("User-Agent", "LeChenMusic/1.0")
-            .header("Cache-Control", "no-cache, no-store, must-revalidate")
-            .header("Pragma", "no-cache")
-            .cacheControl(CacheControl.FORCE_NETWORK)
-            .build()
+        if (apkFile.exists()) apkFile.delete()
+
+        val request = buildFreshRequest(apkUrl)
 
         val response = try {
             client.newCall(request).execute()
@@ -315,25 +343,27 @@ object UpdateChecker {
             throw e
         }
 
+        // 416: 服务器拒绝 Range 请求 → 用全新 client + 无 Range 头重试
         if (response.code == 416) {
-            // 416 Range Not Satisfiable - retry without Range header
-            Log.w(TAG, "Got 416, retrying without Range header")
+            Log.w(TAG, "Got 416, creating fresh client for clean retry")
             response.close()
-            val freshRequest = Request.Builder()
-                .url(apkUrl)
-                .header("Accept-Encoding", "identity")
-                .header("User-Agent", "LeChenMusic/1.0")
-                .header("Cache-Control", "no-cache, no-store, must-revalidate")
-                .header("Pragma", "no-cache")
-                .build()
-            val freshResponse = client.newCall(freshRequest).execute()
-            if (!freshResponse.isSuccessful) {
-                val errMsg = "HTTP ${freshResponse.code}: ${freshResponse.message}"
-                Log.e(TAG, "Retry failed: $errMsg")
-                freshResponse.close()
-                throw IOException(errMsg)
+            if (apkFile.exists()) apkFile.delete()
+
+            val freshClient = newFreshClient()
+            try {
+                val freshRequest = buildFreshRequest(apkUrl)
+                val freshResponse = freshClient.newCall(freshRequest).execute()
+                if (!freshResponse.isSuccessful) {
+                    val errMsg = "HTTP ${freshResponse.code}: ${freshResponse.message}"
+                    Log.e(TAG, "416 retry failed: $errMsg")
+                    freshResponse.close()
+                    throw IOException(errMsg)
+                }
+                return downloadFromResponse(freshResponse, apkFile, onProgress)
+            } finally {
+                freshClient.dispatcher.executorService.shutdown()
+                freshClient.connectionPool.evictAll()
             }
-            return downloadFromResponse(freshResponse, apkFile, onProgress)
         }
 
         if (!response.isSuccessful) {
@@ -390,6 +420,13 @@ object UpdateChecker {
             throw e
         } finally {
             response.close()
+        }
+
+        // 检查是否下载完整
+        if (totalBytes > 0 && downloadedBytes < totalBytes) {
+            Log.e(TAG, "Incomplete download: $downloadedBytes / $totalBytes bytes")
+            if (apkFile.exists()) apkFile.delete()
+            return null
         }
 
         if (!apkFile.exists() || apkFile.length() < 100_000L) {
