@@ -29,9 +29,15 @@ fun AlbumsScreen(
     val password by viewModel.password.collectAsState()
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var sortType by remember { mutableStateOf("newest") }
+    var isLoadingAll by remember { mutableStateOf(false) }
 
     LaunchedEffect(sortType) {
-        viewModel.loadAlbums(sortType) { albums = it }
+        if (sortType == "all") {
+            isLoadingAll = true
+            viewModel.loadAllAlbums { albums = it; isLoadingAll = false }
+        } else {
+            viewModel.loadAlbums(sortType) { albums = it }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -49,7 +55,7 @@ fun AlbumsScreen(
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("newest" to "最新", "recent" to "最近", "random" to "随机").forEach { (type, label) ->
+            listOf("newest" to "最新", "recent" to "最近", "random" to "随机", "all" to "全部").forEach { (type, label) ->
                 FilterChip(
                     selected = sortType == type,
                     onClick = { sortType = type },
@@ -58,7 +64,19 @@ fun AlbumsScreen(
             }
         }
 
-        if (albums.isEmpty()) {
+        if (albums.isEmpty() && isLoadingAll) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Text("加载全部专辑中...", fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+                }
+            }
+        } else if (albums.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

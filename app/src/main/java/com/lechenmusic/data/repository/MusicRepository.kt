@@ -83,6 +83,15 @@ class MusicRepository {
         }
     }
 
+    suspend fun getAlbumList2(type: String, size: Int = 50, offset: Int = 0): Result<List<Album>> {
+        return try {
+            val response = api!!.getAlbumList2(username, password, type = type, size = size, offset = offset)
+            Result.success(response.subsonicResponse.albumList2?.album ?: emptyList())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getAlbum(id: String): Result<AlbumDetail> {
         return try {
             val response = api!!.getAlbum(username, password, id)

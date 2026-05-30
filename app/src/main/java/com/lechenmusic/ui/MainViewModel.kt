@@ -456,6 +456,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun loadAllAlbums(callback: (List<Album>) -> Unit) {
+        viewModelScope.launch {
+            val allAlbums = mutableListOf<Album>()
+            val seenIds = mutableSetOf<String>()
+            val types = listOf("newest", "recent", "frequent", "random", "starred", "alphabeticalByName")
+            for (type in types) {
+                var offset = 0
+                val pageSize = 500
+                while (true) {
+                    try {
+                        val albums = repository.getAlbumList2(type, pageSize, offset).getOrNull() ?: break
+                        for (album in albums) {
+                            if (seenIds.add(album.id)) {
+                                allAlbums.add(album)
+                            }
+                        }
+                        if (albums.size < pageSize) break
+                        offset += pageSize
+                    } catch (_: Exception) { break }
+                }
+            }
+            callback(allAlbums)
+        }
+    }
+
     fun search(query: String) {
         _searchQuery.value = query
         if (query.isBlank()) {
