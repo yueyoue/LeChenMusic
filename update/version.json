@@ -1,6 +1,6 @@
 {
   "versionCode": 23,
   "versionName": "1.2.3",
-  "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
+  "apkUrl": "https://github.com/yueyoue/LeChenMusic/releases/download/v1.2.3/app-release.apk",
   "updateLog": "1. 专辑页面移除\"最新\"标签\n2. 修复更新下载问题（强制HTTP/1.1）\n3. 优化下载错误提示"
 }
