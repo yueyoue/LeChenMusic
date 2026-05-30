@@ -1,6 +1,6 @@
 {
-  "versionCode": 26,
-  "versionName": "1.2.6",
+  "versionCode": 27,
+  "versionName": "1.2.7",
   "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
-  "updateLog": "1. 更换更新服务器\n2. 修复版本号"
+  "updateLog": "1. 测试自动更新"
 }
