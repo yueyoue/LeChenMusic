@@ -101,6 +101,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-session:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    // Media3 notification for proper MediaSession integration (fixes HarmonyOS lock screen)
+    implementation("androidx.media3:media3-notification:1.2.1")
 
     // Media compat for notification MediaStyle
     implementation("androidx.media:media:1.7.0")
