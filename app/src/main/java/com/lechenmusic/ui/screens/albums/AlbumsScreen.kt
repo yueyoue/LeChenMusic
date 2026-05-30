@@ -28,7 +28,7 @@ fun AlbumsScreen(
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
-    var sortType by remember { mutableStateOf("newest") }
+    var sortType by remember { mutableStateOf("all") }
     var isLoadingAll by remember { mutableStateOf(false) }
 
     LaunchedEffect(sortType) {
@@ -55,7 +55,7 @@ fun AlbumsScreen(
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("newest" to "最新", "recent" to "最近", "random" to "随机", "all" to "全部").forEach { (type, label) ->
+            listOf("all" to "全部", "recent" to "最近", "random" to "随机").forEach { (type, label) ->
                 FilterChip(
                     selected = sortType == type,
                     onClick = { sortType = type },

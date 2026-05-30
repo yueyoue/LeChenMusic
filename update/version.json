@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "1.2.1",
+  "versionCode": 22,
+  "versionName": "1.2.2",
   "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
-  "updateLog": "1. 修复更新下载问题\n2. 优化下载重试机制\n3. 版本号 v1.2.1"
+  "updateLog": "1. 专辑页面移除\"最新\"标签，保留全部、最近、随机\n2. 修复更新下载问题\n3. 版本号 v1.2.2"
 }
