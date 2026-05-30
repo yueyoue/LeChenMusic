@@ -5,11 +5,11 @@ import android.content.Intent
 import android.os.Environment
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.SecureRandom
@@ -28,38 +28,34 @@ data class UpdateInfo(
 
 object UpdateChecker {
 
-    // GitHub releases API
     private const val GITHUB_API_URL = "https://api.github.com/repos/yueyoue/LeChenMusic/releases/latest"
-    // Fallback custom server
-    private const val FALLBACK_UPDATE_URL = "https://yy.tthsdd.top/musicapp/update/version.json"
+    private const val CUSTOM_SERVER_URL = "https://yy.tthsdd.top/musicapp/update/version.json"
 
+    // 通用客户端：启用连接池 + gzip
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    // 下载专用客户端：更长超时
+    private val downloadClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
-            // 优先使用自定义服务器（国内速度快）
+            // 优先自定义服务器（国内快）
             val info = tryCustomServer(currentVersionCode)
-            if (info != null) {
-                return@withContext info
-            }
-            // 备用：GitHub releases（国内可能较慢）
+            if (info != null) return@withContext info
+            // 备用 GitHub
             tryGitHubReleases()
         }
     }
-
-
-
-
-
-
-
-
-
-
-
 
     private fun tryGitHubReleases(): UpdateInfo? {
         return try {
@@ -73,33 +69,25 @@ object UpdateChecker {
             val body = response.body?.string() ?: return null
             val json = JSONObject(body)
 
-            val tagName = json.getString("tag_name") // e.g. "v1.1.1"
+            val tagName = json.getString("tag_name")
             val versionName = tagName.removePrefix("v")
-            // Extract version code from body or parse from tag
             val bodyText = json.optString("body", "")
             val versionCodeMatch = Regex("versionCode:\\s*(\\d+)").find(bodyText)
             val versionCode = versionCodeMatch?.groupValues?.get(1)?.toIntOrNull()
                 ?: parseVersionCodeFromTag(versionName)
 
-            // Find APK asset
             val assets = json.getJSONArray("assets")
             var apkUrl = ""
             for (i in 0 until assets.length()) {
                 val asset = assets.getJSONObject(i)
-                val name = asset.getString("name")
-                if (name.endsWith(".apk")) {
+                if (asset.getString("name").endsWith(".apk")) {
                     apkUrl = asset.getString("browser_download_url")
                     break
                 }
             }
             if (apkUrl.isEmpty()) return null
 
-            UpdateInfo(
-                versionCode = versionCode,
-                versionName = versionName,
-                apkUrl = apkUrl,
-                updateLog = bodyText
-            )
+            UpdateInfo(versionCode, versionName, apkUrl, bodyText)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -107,7 +95,6 @@ object UpdateChecker {
     }
 
     private fun parseVersionCodeFromTag(versionName: String): Int {
-        // Parse "1.1.1" -> 11 (major*100 + minor*10 + patch, but simple mapping)
         val parts = versionName.split(".")
         return try {
             when {
@@ -121,7 +108,7 @@ object UpdateChecker {
     private fun tryCustomServer(currentVersionCode: Int): UpdateInfo? {
         return try {
             val request = Request.Builder()
-                .url(FALLBACK_UPDATE_URL)
+                .url(CUSTOM_SERVER_URL)
                 .cacheControl(CacheControl.FORCE_NETWORK)
                 .build()
             val response = client.newCall(request).execute()
@@ -153,13 +140,22 @@ object UpdateChecker {
             )
             if (apkFile.exists()) apkFile.delete()
 
-            // Try with default SSL first
-            withContext(Dispatchers.Main) { onProgress?.invoke("正在下载...") }
-            val result = tryDownload(apkFile, apkUrl, onProgress)
-            if (result != null) return@withContext result
+            // 最多重试 3 次
+            for (attempt in 1..3) {
+                withContext(Dispatchers.Main) {
+                    onProgress?.invoke(if (attempt == 1) "正在下载..." else "重试中 ($attempt/3)...")
+                }
 
-            // Fallback: trust all SSL (for self-signed / expired certs)
-            withContext(Dispatchers.Main) { onProgress?.invoke("重试中...") }
+                val result = tryDownload(apkFile, apkUrl, onProgress)
+                if (result != null) return@withContext result
+
+                // 清理失败文件，准备重试
+                if (apkFile.exists()) apkFile.delete()
+                if (attempt < 3) delay(1000L * attempt)
+            }
+
+            // 最后尝试信任所有证书
+            withContext(Dispatchers.Main) { onProgress?.invoke("正在尝试备用连接...") }
             val fallback = tryDownloadTrustAll(apkFile, apkUrl, onProgress)
             if (fallback != null) return@withContext fallback
 
@@ -174,12 +170,6 @@ object UpdateChecker {
         onProgress: ((String) -> Unit)? = null
     ): File? {
         return try {
-            val downloadClient = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build()
             downloadFile(downloadClient, apkFile, apkUrl, onProgress)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -200,15 +190,15 @@ object UpdateChecker {
             })
             val sslContext = SSLContext.getInstance("TLS")
             sslContext.init(null, trustAllCerts, SecureRandom())
-            val downloadClient = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
+            val client = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .followSslRedirects(true)
                 .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
                 .build()
-            downloadFile(downloadClient, apkFile, apkUrl, onProgress)
+            downloadFile(client, apkFile, apkUrl, onProgress)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -221,7 +211,10 @@ object UpdateChecker {
         apkUrl: String,
         onProgress: ((String) -> Unit)? = null
     ): File? {
-        val request = Request.Builder().url(apkUrl).build()
+        val request = Request.Builder()
+            .url(apkUrl)
+            .header("Accept-Encoding", "identity") // APK 已压缩，不需要 gzip
+            .build()
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             withContext(Dispatchers.Main) { onProgress?.invoke("下载失败 (${response.code})") }
@@ -230,17 +223,25 @@ object UpdateChecker {
         val body = response.body ?: return null
         val totalBytes = body.contentLength()
         var downloadedBytes = 0L
+        var lastProgressTime = 0L
+
         body.byteStream().use { input ->
-            apkFile.outputStream().use { output ->
-                val buffer = ByteArray(8192)
+            apkFile.outputStream().buffered(65536).use { output ->
+                val buffer = ByteArray(65536) // 64KB buffer（原 8KB）
                 var bytesRead: Int
                 while (input.read(buffer).also { bytesRead = it } != -1) {
                     output.write(buffer, 0, bytesRead)
                     downloadedBytes += bytesRead
-                    if (totalBytes > 0) {
+
+                    // 限制进度更新频率：最多每 500ms 更新一次（避免频繁 UI 切换拖慢速度）
+                    val now = System.currentTimeMillis()
+                    if (totalBytes > 0 && now - lastProgressTime >= 500) {
+                        lastProgressTime = now
                         val progress = (downloadedBytes * 100 / totalBytes).toInt()
+                        val sizeMB = downloadedBytes / 1024.0 / 1024.0
+                        val totalMB = totalBytes / 1024.0 / 1024.0
                         withContext(Dispatchers.Main) {
-                            onProgress?.invoke("正在下载... $progress%")
+                            onProgress?.invoke("正在下载... $progress% (%.1f/%.1f MB)".format(sizeMB, totalMB))
                         }
                     }
                 }
