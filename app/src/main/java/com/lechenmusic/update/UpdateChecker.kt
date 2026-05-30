@@ -408,7 +408,7 @@ object UpdateChecker {
                             val sizeMB = downloadedBytes / 1024.0 / 1024.0
                             val totalMB = totalBytes / 1024.0 / 1024.0
                             withContext(Dispatchers.Main) {
-                                onProgress?.invoke("正在下载... $progress% (%.1f/%.1f MB)".format(sizeMB, totalMB))
+                                onProgress?.invoke("正在下载... $progress%% (%.1f/%.1f MB)".format(sizeMB, totalMB))
                             }
                         }
                     }
