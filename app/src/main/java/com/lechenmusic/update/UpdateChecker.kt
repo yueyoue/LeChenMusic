@@ -40,15 +40,26 @@ object UpdateChecker {
 
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
-            // Try GitHub releases first
-            val info = tryGitHubReleases()
-            if (info != null && info.versionCode > currentVersionCode) {
+            // 优先使用自定义服务器（国内速度快）
+            val info = tryCustomServer(currentVersionCode)
+            if (info != null) {
                 return@withContext info
             }
-            // Fallback to custom server
-            tryCustomServer(currentVersionCode)
+            // 备用：GitHub releases（国内可能较慢）
+            tryGitHubReleases()
         }
     }
+
+
+
+
+
+
+
+
+
+
+
 
     private fun tryGitHubReleases(): UpdateInfo? {
         return try {
