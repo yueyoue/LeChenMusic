@@ -11,3 +11,8 @@ local.properties
 /app/build
 output/
 LeChenMusic-v1.0.0-debug.apk
+
+# Build artifacts - use GitHub Releases instead
+APK/
+release-artifact.zip
+*.apk
