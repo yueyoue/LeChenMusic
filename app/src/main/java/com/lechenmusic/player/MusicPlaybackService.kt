@@ -14,6 +14,9 @@ import com.lechenmusic.MainActivity
 /**
  * Foreground service that keeps the music playing when the app is in background.
  * Uses MediaSession for lock screen controls and notification integration.
+ *
+ * HarmonyOS fix: MediaSession is now set BEFORE super.onCreate() to ensure
+ * the session is available when the system queries onGetSession().
  */
 class MusicPlaybackService : MediaSessionService() {
 
@@ -27,10 +30,13 @@ class MusicPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
-        super.onCreate()
+        // Create notification channel first
         createNotificationChannel()
-        // Use shared MediaSession if available
+        // Get the shared MediaSession BEFORE calling super.onCreate()
+        // This ensures onGetSession() returns a valid session immediately
         mediaSession = sharedMediaSession
+        super.onCreate()
+        // Start foreground with a default notification
         startForeground(NOTIFICATION_ID, buildDefaultNotification())
     }
 
@@ -70,6 +76,7 @@ class MusicPlaybackService : MediaSessionService() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
+            .setCategory(android.app.Notification.CATEGORY_SERVICE)
             .build()
     }
 

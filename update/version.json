@@ -1,6 +1,6 @@
 {
-  "versionCode": 27,
-  "versionName": "1.2.7",
+  "versionCode": 28,
+  "versionName": "1.2.8",
   "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
-  "updateLog": "1. 测试自动更新"
+  "updateLog": "1. 修复鸿蒙系统锁屏播放器不显示的问题\n2. 优化 MediaSession 状态同步"
 }

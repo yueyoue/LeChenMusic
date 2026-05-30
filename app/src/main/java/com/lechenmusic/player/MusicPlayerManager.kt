@@ -24,6 +24,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionResult
 import com.lechenmusic.MainActivity
 import com.lechenmusic.R
 import com.lechenmusic.data.model.Song
@@ -147,8 +148,30 @@ class MusicPlayerManager(private val context: Context) {
         createNotificationChannel()
         mediaSession = MediaSession.Builder(context, player!!)
             .setCallback(object : MediaSession.Callback {
-                // MediaSession callbacks are handled by ExoPlayer automatically
-                // because we pass the player directly to MediaSession.Builder
+                override fun onPlay(session: MediaSession, controller: MediaSession.ControllerInfo): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    player?.play()
+                    return super.onPlay(session, controller)
+                }
+                override fun onPause(session: MediaSession, controller: MediaSession.ControllerInfo): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    player?.pause()
+                    return super.onPause(session, controller)
+                }
+                override fun onSeekTo(session: MediaSession, controller: MediaSession.ControllerInfo, positionMs: Long): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    player?.seekTo(positionMs)
+                    return super.onSeekTo(session, controller, positionMs)
+                }
+                override fun onSkipToNext(session: MediaSession, controller: MediaSession.ControllerInfo): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    skipNext()
+                    return super.onSkipToNext(session, controller)
+                }
+                override fun onSkipToPrevious(session: MediaSession, controller: MediaSession.ControllerInfo): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    skipPrevious()
+                    return super.onSkipToPrevious(session, controller)
+                }
+                override fun onStop(session: MediaSession, controller: MediaSession.ControllerInfo): com.google.common.util.concurrent.ListenableFuture<SessionResult> {
+                    player?.pause()
+                    return super.onStop(session, controller)
+                }
             })
             .build()
 
