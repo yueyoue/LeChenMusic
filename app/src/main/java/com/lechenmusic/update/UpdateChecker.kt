@@ -3,6 +3,7 @@ package com.lechenmusic.update
 import android.content.Context
 import android.content.Intent
 import android.os.Environment
+import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -12,6 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -28,19 +30,20 @@ data class UpdateInfo(
 
 object UpdateChecker {
 
+    private const val TAG = "UpdateChecker"
     private const val GITHUB_API_URL = "https://api.github.com/repos/yueyoue/LeChenMusic/releases/latest"
     private const val CUSTOM_SERVER_URL = "https://yy.tthsdd.top/musicapp/update/version.json"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
 
     private val downloadClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
@@ -48,8 +51,15 @@ object UpdateChecker {
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
             val info = tryCustomServer(currentVersionCode)
-            if (info != null) return@withContext info
-            tryGitHubReleases(currentVersionCode)
+            if (info != null) {
+                Log.d(TAG, "Found update from custom server: v${info.versionName} (${info.versionCode})")
+                return@withContext info
+            }
+            val ghInfo = tryGitHubReleases(currentVersionCode)
+            if (ghInfo != null) {
+                Log.d(TAG, "Found update from GitHub: v${ghInfo.versionName} (${ghInfo.versionCode})")
+            }
+            ghInfo
         }
     }
 
@@ -93,7 +103,7 @@ object UpdateChecker {
 
             UpdateInfo(versionCode, versionName, apkUrl, updateLog)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "GitHub check failed", e)
             null
         }
     }
@@ -116,7 +126,10 @@ object UpdateChecker {
                 .cacheControl(CacheControl.FORCE_NETWORK)
                 .build()
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Custom server returned ${response.code}")
+                return null
+            }
             val body = response.body?.string() ?: return null
             val json = JSONObject(body)
             val info = UpdateInfo(
@@ -125,16 +138,14 @@ object UpdateChecker {
                 apkUrl = json.getString("apkUrl"),
                 updateLog = json.optString("updateLog", "")
             )
+            Log.d(TAG, "Custom server version: ${info.versionCode}, current: $currentVersionCode")
             if (info.versionCode > currentVersionCode) info else null
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Custom server check failed", e)
             null
         }
     }
 
-    /**
-     * 获取 GitHub Release 的 APK 下载地址（作为备用下载源）
-     */
     private fun getGitHubApkUrl(): String? {
         return try {
             val request = Request.Builder()
@@ -155,6 +166,7 @@ object UpdateChecker {
             }
             null
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to get GitHub APK URL", e)
             null
         }
     }
@@ -171,53 +183,74 @@ object UpdateChecker {
             )
             if (apkFile.exists()) apkFile.delete()
 
-            // === 第一步：尝试从主链接下载（自定义服务器或 GitHub Release） ===
+            Log.d(TAG, "Starting download from: $apkUrl")
+
+            // Step 1: Standard download with retries
             for (attempt in 1..3) {
-                withContext(Dispatchers.Main) {
-                    onProgress?.invoke(if (attempt == 1) "正在下载..." else "重试中 ($attempt/3)...")
+                val attemptMsg = if (attempt == 1) "正在下载..." else "重试中 ($attempt/3)..."
+                withContext(Dispatchers.Main) { onProgress?.invoke(attemptMsg) }
+                Log.d(TAG, "Download attempt $attempt/3")
+
+                try {
+                    val result = downloadFile(downloadClient, apkFile, apkUrl, onProgress)
+                    if (result != null) {
+                        Log.d(TAG, "Download succeeded on attempt $attempt, size=${result.length()}")
+                        return@withContext result
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Download attempt $attempt failed: ${e.javaClass.simpleName}: ${e.message}")
                 }
-                val result = tryDownload(apkFile, apkUrl, onProgress)
-                if (result != null) return@withContext result
+
                 if (apkFile.exists()) apkFile.delete()
                 if (attempt < 3) delay(1000L * attempt)
             }
 
-            // === 第二步：主链接全部失败，尝试信任所有证书下载 ===
+            // Step 2: Trust-all fallback (handles self-signed / intermediate cert issues)
             withContext(Dispatchers.Main) { onProgress?.invoke("正在尝试备用连接...") }
-            val fallback = tryDownloadTrustAll(apkFile, apkUrl, onProgress)
-            if (fallback != null) return@withContext fallback
+            Log.d(TAG, "Trying trust-all download")
+            try {
+                val fallback = tryDownloadTrustAll(apkFile, apkUrl, onProgress)
+                if (fallback != null) {
+                    Log.d(TAG, "Trust-all download succeeded")
+                    return@withContext fallback
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Trust-all download failed: ${e.message}")
+            }
             if (apkFile.exists()) apkFile.delete()
 
-            // === 第三步：如果主链接不是 GitHub，回退到 GitHub Release 下载 ===
+            // Step 3: GitHub fallback (if primary URL was not GitHub)
             val githubUrl = getGitHubApkUrl()
             if (githubUrl != null && githubUrl != apkUrl) {
                 withContext(Dispatchers.Main) { onProgress?.invoke("正在从 GitHub 下载...") }
+                Log.d(TAG, "Trying GitHub fallback: $githubUrl")
                 for (attempt in 1..2) {
-                    val result = tryDownload(apkFile, githubUrl, onProgress)
-                    if (result != null) return@withContext result
+                    try {
+                        val result = downloadFile(downloadClient, apkFile, githubUrl, onProgress)
+                        if (result != null) {
+                            Log.d(TAG, "GitHub download succeeded")
+                            return@withContext result
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "GitHub attempt $attempt failed: ${e.message}")
+                    }
                     if (apkFile.exists()) apkFile.delete()
                     if (attempt < 2) delay(1000L)
                 }
-                // GitHub 也尝试信任所有证书
-                val ghFallback = tryDownloadTrustAll(apkFile, githubUrl, onProgress)
-                if (ghFallback != null) return@withContext ghFallback
+                try {
+                    val ghFallback = tryDownloadTrustAll(apkFile, githubUrl, onProgress)
+                    if (ghFallback != null) {
+                        Log.d(TAG, "GitHub trust-all download succeeded")
+                        return@withContext ghFallback
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "GitHub trust-all failed: ${e.message}")
+                }
                 if (apkFile.exists()) apkFile.delete()
             }
 
             withContext(Dispatchers.Main) { onProgress?.invoke("下载失败，请手动下载") }
-            null
-        }
-    }
-
-    private suspend fun tryDownload(
-        apkFile: File,
-        apkUrl: String,
-        onProgress: ((String) -> Unit)? = null
-    ): File? {
-        return try {
-            downloadFile(downloadClient, apkFile, apkUrl, onProgress)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "All download attempts failed for: $apkUrl")
             null
         }
     }
@@ -236,8 +269,8 @@ object UpdateChecker {
             val sslContext = SSLContext.getInstance("TLS")
             sslContext.init(null, trustAllCerts, SecureRandom())
             val client = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .followSslRedirects(true)
                 .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
@@ -245,7 +278,7 @@ object UpdateChecker {
                 .build()
             downloadFile(client, apkFile, apkUrl, onProgress)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Trust-all download error", e)
             null
         }
     }
@@ -256,42 +289,68 @@ object UpdateChecker {
         apkUrl: String,
         onProgress: ((String) -> Unit)? = null
     ): File? {
+        Log.d(TAG, "Downloading: $apkUrl -> ${apkFile.absolutePath}")
         val request = Request.Builder()
             .url(apkUrl)
             .header("Accept-Encoding", "identity")
+            .header("User-Agent", "LeChenMusic/1.0")
             .build()
+
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            withContext(Dispatchers.Main) { onProgress?.invoke("下载失败 (${response.code})") }
+            val errMsg = "HTTP ${response.code}: ${response.message}"
+            Log.e(TAG, "Download failed: $errMsg")
+            withContext(Dispatchers.Main) { onProgress?.invoke("下载失败 ($errMsg)") }
+            response.close()
             return null
         }
-        val body = response.body ?: return null
+
+        val body = response.body ?: run {
+            response.close()
+            return null
+        }
         val totalBytes = body.contentLength()
         var downloadedBytes = 0L
         var lastProgressTime = 0L
 
-        body.byteStream().use { input ->
-            apkFile.outputStream().buffered(65536).use { output ->
-                val buffer = ByteArray(65536)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloadedBytes += bytesRead
+        try {
+            body.byteStream().use { input ->
+                apkFile.outputStream().buffered(65536).use { output ->
+                    val buffer = ByteArray(65536)
+                    var bytesRead: Int
 
-                    val now = System.currentTimeMillis()
-                    if (totalBytes > 0 && now - lastProgressTime >= 500) {
-                        lastProgressTime = now
-                        val progress = (downloadedBytes * 100 / totalBytes).toInt()
-                        val sizeMB = downloadedBytes / 1024.0 / 1024.0
-                        val totalMB = totalBytes / 1024.0 / 1024.0
-                        withContext(Dispatchers.Main) {
-                            onProgress?.invoke("正在下载... $progress% (%.1f/%.1f MB)".format(sizeMB, totalMB))
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        downloadedBytes += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        if (totalBytes > 0 && now - lastProgressTime >= 500) {
+                            lastProgressTime = now
+                            val progress = (downloadedBytes * 100 / totalBytes).toInt()
+                            val sizeMB = downloadedBytes / 1024.0 / 1024.0
+                            val totalMB = totalBytes / 1024.0 / 1024.0
+                            withContext(Dispatchers.Main) {
+                                onProgress?.invoke("正在下载... $progress% (%.1f/%.1f MB)".format(sizeMB, totalMB))
+                            }
                         }
                     }
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Download stream error at $downloadedBytes bytes", e)
+            if (apkFile.exists()) apkFile.delete()
+            throw e
+        } finally {
+            response.close()
         }
-        return if (apkFile.exists() && apkFile.length() > 0) apkFile else null
+
+        return if (apkFile.exists() && apkFile.length() > 0) {
+            Log.d(TAG, "Download complete: ${apkFile.length()} bytes")
+            apkFile
+        } else {
+            Log.e(TAG, "Download file invalid: exists=${apkFile.exists()}, size=${apkFile.length()}")
+            null
+        }
     }
 
     fun installApk(context: Context, apkFile: File): Boolean {
@@ -312,7 +371,7 @@ object UpdateChecker {
             context.startActivity(intent)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Install failed", e)
             android.widget.Toast.makeText(
                 context,
                 "安装失败: ${e.message}",
