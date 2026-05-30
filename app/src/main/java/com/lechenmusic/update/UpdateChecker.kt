@@ -44,9 +44,8 @@ object UpdateChecker {
         .followSslRedirects(true)
         .build()
 
-    // 下载用的 client - 强制 HTTP/1.1，避免 HTTP/2 兼容性问题
+    // 下载用的 client - 支持 HTTP/1.1 和 HTTP/2，自动协商
     private val downloadClient = OkHttpClient.Builder()
-        .protocols(listOf(Protocol.HTTP_1_1))  // 强制 HTTP/1.1
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
@@ -188,7 +187,6 @@ object UpdateChecker {
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, trustAllCerts, SecureRandom())
         return OkHttpClient.Builder()
-            .protocols(listOf(Protocol.HTTP_1_1))  // 强制 HTTP/1.1
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .followRedirects(true)
