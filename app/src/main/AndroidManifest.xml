@@ -37,7 +37,12 @@
         <service
             android:name=".player.MusicPlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+                <action android:name="androidx.media3.session.MediaBrowserService" />
+            </intent-filter>
+        </service>
 
         <!-- 自动更新：FileProvider，用于安装 APK -->
         <provider
