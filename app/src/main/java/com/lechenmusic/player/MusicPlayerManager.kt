@@ -1,6 +1,7 @@
 package com.lechenmusic.player
 
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -162,8 +163,9 @@ class MusicPlayerManager(private val context: Context) {
             })
         }
 
-        // Share MediaSession with the service
+        // Share MediaSession and token with the service BEFORE starting it
         MusicPlaybackService.sharedMediaSession = mediaSession
+        MusicPlaybackService.sharedSessionToken = mediaSessionCompat?.sessionToken
 
         // Start foreground service for persistent notification
         startForegroundService()
@@ -222,6 +224,7 @@ class MusicPlayerManager(private val context: Context) {
             ).apply {
                 description = "悦音播放控制"
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -316,6 +319,7 @@ class MusicPlayerManager(private val context: Context) {
                 .setSubText(song.album)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 .setOngoing(_isPlaying.value)
                 .setShowWhen(false)
                 // Album art as large icon
