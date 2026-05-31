@@ -11,11 +11,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -309,30 +309,38 @@ class MusicPlayerManager(private val context: Context) {
             val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
             val favIcon = if (_isStarred.value) R.drawable.ic_notif_favorite else R.drawable.ic_notif_favorite_border
 
-            // 使用平台原生 MediaStyle (鸿蒙系统需要 android.media.session.MediaStyle)
-            val platformMediaStyle = android.media.session.MediaStyle(session)
-                .setShowActionsInCompactView(0, 1, 2)
-
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            // 使用平台 Notification.Builder + MediaStyle (鸿蒙需要)
+            val builder = Notification.Builder(context, CHANNEL_ID)
                 .setContentIntent(pendingIntent)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentTitle(song.title)
                 .setContentText(song.artist)
                 .setSubText(song.album)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(_isPlaying.value)
-                .setShowWhen(false)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+                .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setLargeIcon(albumArt)
-                .setStyle(platformMediaStyle)
-                .addAction(R.drawable.ic_notif_prev, "上一曲", prevPending)
-                .addAction(playPauseIcon, if (_isPlaying.value) "暂停" else "播放", playPausePending)
-                .addAction(R.drawable.ic_notif_next, "下一曲", nextPending)
-                .addAction(favIcon, if (_isStarred.value) "取消收藏" else "收藏", favPending)
-                .build()
+                .setStyle(
+                    Notification.MediaStyle(session)
+                        .setShowActionsInCompactView(0, 1, 2)
+                )
+                .addAction(Notification.Action.Builder(
+                    Icon.createWithResource(context, R.drawable.ic_notif_prev),
+                    "上一曲", prevPending).build())
+                .addAction(Notification.Action.Builder(
+                    Icon.createWithResource(context, playPauseIcon),
+                    if (_isPlaying.value) "暂停" else "播放", playPausePending).build())
+                .addAction(Notification.Action.Builder(
+                    Icon.createWithResource(context, R.drawable.ic_notif_next),
+                    "下一曲", nextPending).build())
+                .addAction(Notification.Action.Builder(
+                    Icon.createWithResource(context, favIcon),
+                    if (_isStarred.value) "取消收藏" else "收藏", favPending).build())
 
-            nm.notify(NOTIFICATION_ID, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                builder.setVisibility(Notification.VISIBILITY_PUBLIC)
+            }
+
+            nm.notify(NOTIFICATION_ID, builder.build())
         }
     }
 

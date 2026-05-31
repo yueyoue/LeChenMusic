@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.session.MediaSession
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.media3.session.MediaSessionService
 import com.lechenmusic.MainActivity
 
@@ -73,21 +72,23 @@ class MusicPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = Notification.Builder(this, CHANNEL_ID)
             .setContentIntent(pendingIntent)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("悦音")
             .setContentText("正在播放音乐")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            .setCategory(Notification.CATEGORY_TRANSPORT)
             .setOngoing(true)
 
-        // 使用平台原生 MediaStyle (鸿蒙系统需要 android.media.session.MediaStyle)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder.setVisibility(Notification.VISIBILITY_PUBLIC)
+        }
+
+        // 使用平台原生 MediaStyle (鸿蒙需要)
         val session = mediaSession ?: sharedMediaSession
         if (session != null) {
             builder.setStyle(
-                android.media.session.MediaStyle(session)
+                Notification.MediaStyle(session)
                     .setShowActionsInCompactView(0, 1, 2)
             )
         }
