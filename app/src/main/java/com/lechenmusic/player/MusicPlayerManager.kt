@@ -220,11 +220,14 @@ class MusicPlayerManager(private val context: Context) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "音乐播放",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "悦音播放控制"
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                // 鸿蒙系统需要此设置才能在锁屏显示媒体控制
+                setSound(null, null)
+                enableVibration(false)
             }
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -260,6 +263,19 @@ class MusicPlayerManager(private val context: Context) {
                 1.0f
             )
         sessionCompat.setPlaybackState(stateBuilder.build())
+
+        // 同步元数据到 Media3 session (鸿蒙系统从 Media3 session 读取锁屏信息)
+        mediaSession?.let { session ->
+            val extras = android.os.Bundle().apply {
+                putString("android.media.metadata.TITLE", song.title)
+                putString("android.media.metadata.ARTIST", song.artist)
+                putString("android.media.metadata.ALBUM", song.album)
+                putLong("android.media.metadata.DURATION", song.duration * 1000L)
+            }
+            try {
+                session.setSessionExtras(extras)
+            } catch (_: Exception) {}
+        }
 
         val openIntent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -308,6 +324,25 @@ class MusicPlayerManager(private val context: Context) {
                 sessionCompat.setMetadata(metaWithArt)
             }
 
+            // 同步封面到 Media3 session extras (鸿蒙锁屏读取)
+            val coverArtUrl = if (!song.coverArt.isNullOrBlank()) {
+                repository?.getCoverArtUrl(song.coverArt)
+            } else null
+            mediaSession?.let { session ->
+                val extras = android.os.Bundle().apply {
+                    putString("android.media.metadata.TITLE", song.title)
+                    putString("android.media.metadata.ARTIST", song.artist)
+                    putString("android.media.metadata.ALBUM", song.album)
+                    putLong("android.media.metadata.DURATION", song.duration * 1000L)
+                    if (coverArtUrl != null) {
+                        putString("android.media.metadata.ALBUM_ART_URI", coverArtUrl)
+                    }
+                }
+                try {
+                    session.setSessionExtras(extras)
+                } catch (_: Exception) {}
+            }
+
             val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
             val favIcon = if (_isStarred.value) R.drawable.ic_notif_favorite else R.drawable.ic_notif_favorite_border
 
@@ -317,11 +352,12 @@ class MusicPlayerManager(private val context: Context) {
                 .setContentTitle(song.title)
                 .setContentText(song.artist)
                 .setSubText(song.album)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 .setOngoing(_isPlaying.value)
                 .setShowWhen(false)
+                // 鸿蒙系统锁屏显示需要的分类
+                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 // Album art as large icon
                 .setLargeIcon(albumArt)
                 // MediaStyle with MediaSessionCompat token for lock screen controls
