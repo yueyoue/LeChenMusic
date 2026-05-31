@@ -5,43 +5,38 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.session.MediaSession
 import android.os.Build
-import android.support.v4.media.session.MediaSessionCompat
 import androidx.core.app.NotificationCompat
-import androidx.media.app.NotificationCompat.MediaStyle
-import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.lechenmusic.MainActivity
 
 /**
  * Foreground service for persistent music playback.
- * Creates notification with MediaSessionCompat token for lock screen controls.
+ * Uses platform MediaSession + MediaStyle for lock screen controls (HarmonyOS compatible).
  */
 class MusicPlaybackService : MediaSessionService() {
 
     companion object {
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
-        // Shared MediaSession reference from MusicPlayerManager
+        // Shared Media3 session for player integration
+        var sharedMedia3Session: androidx.media3.session.MediaSession? = null
+        // Shared platform MediaSession for lock screen controls (鸿蒙需要)
         var sharedMediaSession: MediaSession? = null
-        // Shared MediaSessionCompat token for notification
-        var sharedSessionToken: MediaSessionCompat.Token? = null
     }
 
+    private var media3Session: androidx.media3.session.MediaSession? = null
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        media3Session = sharedMedia3Session
         mediaSession = sharedMediaSession
-        // Start foreground with a notification that includes the session token
         startForeground(NOTIFICATION_ID, buildNotification())
     }
 
-    /**
-     * Refresh the notification with the latest session token.
-     * Called by MusicPlayerManager when the session is ready.
-     */
     fun refreshNotification() {
         try {
             val nm = getSystemService(NotificationManager::class.java)
@@ -49,12 +44,8 @@ class MusicPlaybackService : MediaSessionService() {
         } catch (_: Exception) {}
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession ?: sharedMediaSession
-    }
-
-    fun setMediaSession(session: MediaSession) {
-        mediaSession = session
+    override fun onGetSession(controllerInfo: androidx.media3.session.MediaSession.ControllerInfo): androidx.media3.session.MediaSession? {
+        return media3Session ?: sharedMedia3Session
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -62,9 +53,14 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        mediaSession?.run {
+        media3Session?.run {
             player.release()
             release()
+        }
+        media3Session = null
+        mediaSession?.let {
+            it.isActive = false
+            it.release()
         }
         mediaSession = null
         super.onDestroy()
@@ -87,12 +83,11 @@ class MusicPlaybackService : MediaSessionService() {
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setOngoing(true)
 
-        // Attach MediaSessionCompat token for lock screen controls
-        val token = sharedSessionToken
-        if (token != null) {
+        // 使用平台原生 MediaStyle (鸿蒙系统需要 android.media.session.MediaStyle)
+        val session = mediaSession ?: sharedMediaSession
+        if (session != null) {
             builder.setStyle(
-                MediaStyle()
-                    .setMediaSession(token)
+                android.media.session.MediaStyle(session)
                     .setShowActionsInCompactView(0, 1, 2)
             )
         }

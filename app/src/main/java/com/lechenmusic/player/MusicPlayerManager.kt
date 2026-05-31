@@ -11,19 +11,17 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadata
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.os.Build
-import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
-import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MediaMetadata as Media3Metadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
 import com.lechenmusic.MainActivity
 import com.lechenmusic.R
 import com.lechenmusic.data.model.Song
@@ -45,8 +43,8 @@ class MusicPlayerManager(private val context: Context) {
     private var player: ExoPlayer? = null
     private var repository: MusicRepository? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var mediaSession: MediaSession? = null
-    private var mediaSessionCompat: MediaSessionCompat? = null
+    private var media3Session: androidx.media3.session.MediaSession? = null
+    private var mediaSession: MediaSession? = null  // 平台原生 MediaSession (鸿蒙锁屏需要)
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -143,29 +141,26 @@ class MusicPlayerManager(private val context: Context) {
                 })
             }
 
-        // Create MediaSession for lock screen controls
+        // Create Media3 session for player integration
         createNotificationChannel()
-        mediaSession = MediaSession.Builder(context, player!!)
-            .setCallback(object : MediaSession.Callback {
-                // MediaSession callbacks are handled by ExoPlayer automatically
-            })
+        media3Session = androidx.media3.session.MediaSession.Builder(context, player!!)
             .build()
 
-        // Create MediaSessionCompat for notification MediaStyle
-        mediaSessionCompat = MediaSessionCompat(context, "LeChenMusicSession").apply {
-            isActive = true
-            setCallback(object : MediaSessionCompat.Callback() {
+        // Create platform MediaSession for lock screen controls (鸿蒙需要平台原生 MediaSession)
+        mediaSession = MediaSession(context, "LeChenMusicSession").apply {
+            setCallback(object : MediaSession.Callback() {
                 override fun onPlay() { togglePlayPause() }
                 override fun onPause() { togglePlayPause() }
                 override fun onSkipToNext() { skipNext() }
                 override fun onSkipToPrevious() { skipPrevious() }
                 override fun onStop() { forcePause() }
             })
+            isActive = true
         }
 
-        // Share MediaSession and token with the service BEFORE starting it
+        // Share sessions with the service
+        MusicPlaybackService.sharedMedia3Session = media3Session
         MusicPlaybackService.sharedMediaSession = mediaSession
-        MusicPlaybackService.sharedSessionToken = mediaSessionCompat?.sessionToken
 
         // Start foreground service for persistent notification
         startForegroundService()
@@ -237,45 +232,33 @@ class MusicPlayerManager(private val context: Context) {
     private fun updateNotification() {
         val song = _currentSong.value ?: return
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val sessionCompat = mediaSessionCompat ?: return
+        val session = mediaSession ?: return
 
-        // Update MediaSession metadata (for lock screen display)
-        val metadataBuilder = MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
-            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
-            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
-        sessionCompat.setMetadata(metadataBuilder.build())
+        // 更新平台 MediaSession 元数据 (锁屏播放器显示)
+        val metadata = MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_TITLE, song.title)
+            .putString(MediaMetadata.METADATA_KEY_ARTIST, song.artist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, song.album)
+            .putLong(MediaMetadata.METADATA_KEY_DURATION, song.duration * 1000L)
+            .build()
+        session.setMetadata(metadata)
 
-        // Update playback state with current position (critical for lock screen progress)
-        val stateBuilder = PlaybackStateCompat.Builder()
+        // 更新播放状态 (锁屏进度条)
+        val state = PlaybackState.Builder()
             .setActions(
-                PlaybackStateCompat.ACTION_PLAY or
-                PlaybackStateCompat.ACTION_PAUSE or
-                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
-                PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                PlaybackStateCompat.ACTION_SET_RATING
+                PlaybackState.ACTION_PLAY or
+                PlaybackState.ACTION_PAUSE or
+                PlaybackState.ACTION_SKIP_TO_NEXT or
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                PlaybackState.ACTION_PLAY_PAUSE
             )
             .setState(
-                if (_isPlaying.value) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                if (_isPlaying.value) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
                 player?.currentPosition ?: _currentPosition.value,
                 1.0f
             )
-        sessionCompat.setPlaybackState(stateBuilder.build())
-
-        // 同步元数据到 Media3 session (鸿蒙系统从 Media3 session 读取锁屏信息)
-        mediaSession?.let { session ->
-            val extras = android.os.Bundle().apply {
-                putString("android.media.metadata.TITLE", song.title)
-                putString("android.media.metadata.ARTIST", song.artist)
-                putString("android.media.metadata.ALBUM", song.album)
-                putLong("android.media.metadata.DURATION", song.duration * 1000L)
-            }
-            try {
-                session.setSessionExtras(extras)
-            } catch (_: Exception) {}
-        }
+            .build()
+        session.setPlaybackState(state)
 
         val openIntent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -283,7 +266,6 @@ class MusicPlayerManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Create action intents for notification buttons
         val prevIntent = Intent(ACTION_PREV).setPackage(context.packageName)
         val prevPending = PendingIntent.getBroadcast(
             context, 1, prevIntent,
@@ -308,43 +290,28 @@ class MusicPlayerManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Load album art in background
+        // 在后台加载封面并更新通知
         scope.launch(Dispatchers.IO) {
             val albumArt = loadAlbumArt(song.coverArt)
 
-            // Update metadata with album art
+            // 更新封面到 MediaSession 元数据
             if (albumArt != null) {
-                val metaWithArt = MediaMetadataCompat.Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
-                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
-                    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration * 1000L)
-                    .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArt)
+                val metaWithArt = MediaMetadata.Builder()
+                    .putString(MediaMetadata.METADATA_KEY_TITLE, song.title)
+                    .putString(MediaMetadata.METADATA_KEY_ARTIST, song.artist)
+                    .putString(MediaMetadata.METADATA_KEY_ALBUM, song.album)
+                    .putLong(MediaMetadata.METADATA_KEY_DURATION, song.duration * 1000L)
+                    .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, albumArt)
                     .build()
-                sessionCompat.setMetadata(metaWithArt)
-            }
-
-            // 同步封面到 Media3 session extras (鸿蒙锁屏读取)
-            val coverArtUrl = if (!song.coverArt.isNullOrBlank()) {
-                repository?.getCoverArtUrl(song.coverArt)
-            } else null
-            mediaSession?.let { session ->
-                val extras = android.os.Bundle().apply {
-                    putString("android.media.metadata.TITLE", song.title)
-                    putString("android.media.metadata.ARTIST", song.artist)
-                    putString("android.media.metadata.ALBUM", song.album)
-                    putLong("android.media.metadata.DURATION", song.duration * 1000L)
-                    if (coverArtUrl != null) {
-                        putString("android.media.metadata.ALBUM_ART_URI", coverArtUrl)
-                    }
-                }
-                try {
-                    session.setSessionExtras(extras)
-                } catch (_: Exception) {}
+                session.setMetadata(metaWithArt)
             }
 
             val playPauseIcon = if (_isPlaying.value) R.drawable.ic_notif_pause else R.drawable.ic_notif_play
             val favIcon = if (_isStarred.value) R.drawable.ic_notif_favorite else R.drawable.ic_notif_favorite_border
+
+            // 使用平台原生 MediaStyle (鸿蒙系统需要 android.media.session.MediaStyle)
+            val platformMediaStyle = android.media.session.MediaStyle(session)
+                .setShowActionsInCompactView(0, 1, 2)
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setContentIntent(pendingIntent)
@@ -356,17 +323,9 @@ class MusicPlayerManager(private val context: Context) {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(_isPlaying.value)
                 .setShowWhen(false)
-                // 鸿蒙系统锁屏显示需要的分类
                 .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-                // Album art as large icon
                 .setLargeIcon(albumArt)
-                // MediaStyle with MediaSessionCompat token for lock screen controls
-                .setStyle(
-                    MediaStyle()
-                        .setMediaSession(sessionCompat.sessionToken)
-                        .setShowActionsInCompactView(0, 1, 2)
-                )
-                // Action buttons: prev, play/pause, next, favorite
+                .setStyle(platformMediaStyle)
                 .addAction(R.drawable.ic_notif_prev, "上一曲", prevPending)
                 .addAction(playPauseIcon, if (_isPlaying.value) "暂停" else "播放", playPausePending)
                 .addAction(R.drawable.ic_notif_next, "下一曲", nextPending)
@@ -408,7 +367,7 @@ class MusicPlayerManager(private val context: Context) {
                     .setUri(url)
                     .setMediaId(s.id)
                     .setMediaMetadata(
-                        MediaMetadata.Builder()
+                        Media3Metadata.Builder()
                             .setTitle(s.title)
                             .setArtist(s.artist)
                             .setAlbumTitle(s.album)
@@ -576,16 +535,16 @@ class MusicPlayerManager(private val context: Context) {
         alarmReceiver?.let {
             try { context.unregisterReceiver(it) } catch (_: Exception) { }
         }
-        mediaSessionCompat?.let {
+        mediaSession?.let {
             it.isActive = false
             it.release()
         }
-        mediaSessionCompat = null
-        mediaSession?.run {
+        mediaSession = null
+        media3Session?.run {
             player.release()
             release()
         }
-        mediaSession = null
+        media3Session = null
         player = null
         // Stop foreground service
         try {
@@ -600,7 +559,7 @@ class MusicPlayerManager(private val context: Context) {
                 .setUri(station.streamUrl)
                 .setMediaId("radio_${station.id}")
                 .setMediaMetadata(
-                    MediaMetadata.Builder()
+                    Media3Metadata.Builder()
                         .setTitle(station.name)
                         .setArtist("电台")
                         .setAlbumTitle("网络电台")
