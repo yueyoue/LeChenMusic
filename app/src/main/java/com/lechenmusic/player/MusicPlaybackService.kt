@@ -5,33 +5,31 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.media.session.MediaSession
 import android.os.Build
+import android.support.v4.media.session.MediaSessionCompat
+import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.lechenmusic.MainActivity
 
 /**
  * Foreground service for persistent music playback.
- * Uses platform MediaSession + MediaStyle for lock screen controls (HarmonyOS compatible).
  */
 class MusicPlaybackService : MediaSessionService() {
 
     companion object {
         const val CHANNEL_ID = "lechen_music_playback"
         const val NOTIFICATION_ID = 1001
-        // Shared Media3 session for player integration
-        var sharedMedia3Session: androidx.media3.session.MediaSession? = null
-        // Shared platform MediaSession for lock screen controls (鸿蒙需要)
         var sharedMediaSession: MediaSession? = null
+        var sharedSessionToken: MediaSessionCompat.Token? = null
     }
 
-    private var media3Session: androidx.media3.session.MediaSession? = null
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        media3Session = sharedMedia3Session
         mediaSession = sharedMediaSession
         startForeground(NOTIFICATION_ID, buildNotification())
     }
@@ -43,8 +41,8 @@ class MusicPlaybackService : MediaSessionService() {
         } catch (_: Exception) {}
     }
 
-    override fun onGetSession(controllerInfo: androidx.media3.session.MediaSession.ControllerInfo): androidx.media3.session.MediaSession? {
-        return media3Session ?: sharedMedia3Session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        return mediaSession ?: sharedMediaSession
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -52,14 +50,9 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        media3Session?.run {
+        mediaSession?.run {
             player.release()
             release()
-        }
-        media3Session = null
-        mediaSession?.let {
-            it.isActive = false
-            it.release()
         }
         mediaSession = null
         super.onDestroy()
@@ -72,23 +65,21 @@ class MusicPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = Notification.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentIntent(pendingIntent)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("悦音")
             .setContentText("正在播放音乐")
-            .setCategory(Notification.CATEGORY_TRANSPORT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setOngoing(true)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.setVisibility(Notification.VISIBILITY_PUBLIC)
-        }
-
-        // 使用平台原生 MediaStyle (鸿蒙需要)
-        val session = mediaSession ?: sharedMediaSession
-        if (session != null) {
+        val token = sharedSessionToken
+        if (token != null) {
             builder.setStyle(
-                Notification.MediaStyle(session)
+                MediaStyle()
+                    .setMediaSession(token)
                     .setShowActionsInCompactView(0, 1, 2)
             )
         }
@@ -101,7 +92,7 @@ class MusicPlaybackService : MediaSessionService() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "音乐播放",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "悦音播放控制"
                 setShowBadge(false)
