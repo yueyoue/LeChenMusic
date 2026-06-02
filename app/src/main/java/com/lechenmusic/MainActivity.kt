@@ -48,9 +48,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
+            val skinMode by viewModel.skinMode.collectAsState()
             val isDark = themeMode == "dark"
 
-            LeChenMusicTheme(darkTheme = isDark) {
+            LeChenMusicTheme(darkTheme = isDark, skinName = skinMode) {
                 // 更新弹窗（启动时自动检查 + 设置页手动检查 都会触发）
                 val updateInfo by viewModel.updateInfo.collectAsState()
                 val updateStatus by viewModel.updateStatus.collectAsState()
