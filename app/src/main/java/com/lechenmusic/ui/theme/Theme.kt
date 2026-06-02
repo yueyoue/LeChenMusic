@@ -10,7 +10,14 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
+// 皮肤枚举
+enum class Skin(val label: String, val isDark: Boolean) {
+    DEFAULT_DARK("默认深色", true),
+    PEARL_WHITE("珍珠白", false)
+}
+
+// 原有深色配色
+private val DefaultDarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
     onPrimary = Color.White,
     primaryContainer = DarkPrimaryDark,
@@ -24,7 +31,8 @@ private val DarkColorScheme = darkColorScheme(
     error = DarkPrimary
 )
 
-private val LightColorScheme = lightColorScheme(
+// 原有浅色配色
+private val DefaultLightColorScheme = lightColorScheme(
     primary = LightPrimary,
     onPrimary = Color.White,
     primaryContainer = LightPrimaryDark,
@@ -38,12 +46,31 @@ private val LightColorScheme = lightColorScheme(
     error = LightPrimary
 )
 
+// 珍珠白配色
+private val PearlWhiteColorScheme = lightColorScheme(
+    primary = PearlPrimary,
+    onPrimary = Color.White,
+    primaryContainer = PearlPrimaryDark,
+    background = PearlBackground,
+    surface = PearlSurface,
+    surfaceVariant = PearlSurfaceVariant,
+    onBackground = PearlOnBackground,
+    onSurface = PearlOnSurface,
+    onSurfaceVariant = PearlOnSurfaceVariant,
+    outline = PearlBorder,
+    error = PearlPrimary
+)
+
 @Composable
 fun LeChenMusicTheme(
     darkTheme: Boolean = true,
+    skinName: String = "default",
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when (skinName) {
+        "pearl_white" -> PearlWhiteColorScheme
+        else -> if (darkTheme) DefaultDarkColorScheme else DefaultLightColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -52,8 +79,10 @@ fun LeChenMusicTheme(
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                // 珍珠白是浅色皮肤，状态栏用深色图标
+                val isLightSkin = skinName == "pearl_white" || !darkTheme
+                isAppearanceLightStatusBars = isLightSkin
+                isAppearanceLightNavigationBars = isLightSkin
             }
         }
     }
