@@ -28,6 +28,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val themeMode: StateFlow<String> = settings.themeMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, "dark")
 
+    // Skin
+    val skinMode: StateFlow<String> = settings.skinMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "default")
+
     // Login state
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -302,6 +306,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             settings.setThemeMode(mode)
+        }
+    }
+
+    fun setSkinMode(mode: String) {
+        viewModelScope.launch {
+            settings.setSkinMode(mode)
         }
     }
 
