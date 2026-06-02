@@ -3,6 +3,9 @@ package com.lechenmusic.ui.screens.player
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.lechenmusic.ui.theme.GlassGradientStart
+import com.lechenmusic.ui.theme.GlassGradientMid
+import com.lechenmusic.ui.theme.GlassGradientEnd
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +49,7 @@ fun PlayerScreen(
     serverUrl: String,
     username: String,
     password: String,
+    themeMode: String = "dark",
     onBack: () -> Unit,
     onShowPlaylist: () -> Unit,
     onShowMore: () -> Unit,
@@ -93,12 +97,23 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                        MaterialTheme.colorScheme.background
+                if (themeMode == "glass") {
+                    Brush.verticalGradient(
+                        listOf(
+                            GlassGradientStart,
+                            GlassGradientMid,
+                            GlassGradientEnd.copy(alpha = 0.3f),
+                            MaterialTheme.colorScheme.background
+                        )
                     )
-                )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                }
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {

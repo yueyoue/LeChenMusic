@@ -2,6 +2,7 @@ package com.lechenmusic.ui.screens.settings
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -96,7 +98,7 @@ fun SettingsScreen(
             SectionTitle("外观设置")
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column {
-                    SettingsToggleItem(icon = Icons.Default.Settings, iconBg = Color(0xFFA55EEA).copy(alpha = 0.15f), label = "深色模式", checked = themeMode == "dark", onCheckedChange = { viewModel.setThemeMode(if (it) "dark" else "light") })
+                    SkinSelector(currentSkin = themeMode, onSkinChange = { viewModel.setThemeMode(it) })
                 }
             }
         }
@@ -278,6 +280,84 @@ private fun SettingsToggleItem(icon: ImageVector, iconBg: Color, label: String, 
         Surface(modifier = Modifier.size(32.dp), shape = RoundedCornerShape(8.dp), color = iconBg) { Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) } }
         Text(label, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/**
+ * 皮肤选择器 — 三套UI皮肤横向预览卡片
+ * @param currentSkin "dark" | "light" | "glass"
+ */
+@Composable
+private fun SkinSelector(currentSkin: String, onSkinChange: (String) -> Unit) {
+    data class Skin(val key: String, val label: String, val emoji: String, val gradient: List<Color>, val bgColor: Color, val desc: String)
+    val skins = listOf(
+        Skin("dark", "经典深色", "🌙", listOf(Color(0xFF1A1A1A), Color(0xFF0E0E0E)), Color(0xFFFF4757), "默认暗红主题"),
+        Skin("light", "清新浅色", "☀️", listOf(Color(0xFFFFFFFF), Color(0xFFF5F5F7)), Color(0xFFFF4757), "明亮舒适"),
+        Skin("glass", "琉璃幻境", "💎", listOf(Color(0xFF667EEA), Color(0xFF764BA2), Color(0xFFF093FB)), Color(0xFF9B7DF7), "毛玻璃 · 渐变")
+    )
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            skins.forEach { skin ->
+                val selected = currentSkin == skin.key
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onSkinChange(skin.key) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    border = if (selected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 渐变预览块
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .background(
+                                    Brush.linearGradient(skin.gradient),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(skin.emoji, fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            skin.label,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            skin.desc,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (selected) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "已选中",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

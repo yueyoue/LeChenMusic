@@ -38,12 +38,35 @@ private val LightColorScheme = lightColorScheme(
     error = LightPrimary
 )
 
+/** 琉璃幻境 - 毛玻璃主题 */
+private val GlassColorScheme = darkColorScheme(
+    primary = GlassPrimary,
+    onPrimary = Color.White,
+    primaryContainer = GlassPrimaryDark,
+    background = GlassBackground,
+    surface = GlassSurface,
+    surfaceVariant = GlassSurfaceVariant,
+    onBackground = GlassOnBackground,
+    onSurface = GlassOnSurface,
+    onSurfaceVariant = GlassOnSurfaceVariant,
+    outline = GlassBorder,
+    error = GlassAccent
+)
+
+/**
+ * 主题入口
+ * @param themeMode "dark" | "light" | "glass"
+ */
 @Composable
 fun LeChenMusicTheme(
-    darkTheme: Boolean = true,
+    themeMode: String = "dark",
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when (themeMode) {
+        "light" -> LightColorScheme
+        "glass" -> GlassColorScheme
+        else -> DarkColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -52,8 +75,9 @@ fun LeChenMusicTheme(
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                // glass 和 dark 都用深色状态栏
+                isAppearanceLightStatusBars = themeMode == "light"
+                isAppearanceLightNavigationBars = themeMode == "light"
             }
         }
     }
