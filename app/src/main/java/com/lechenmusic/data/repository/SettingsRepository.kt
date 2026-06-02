@@ -26,6 +26,7 @@ class SettingsRepository(private val context: Context) {
         val CACHED_DAILY_SONGS_JSON = stringPreferencesKey("cached_daily_songs_json")
         val CACHED_DAILY_SONGS_DATE = stringPreferencesKey("cached_daily_songs_date")
         val SKIPPED_VERSION_CODE = intPreferencesKey("skipped_version_code")
+        val SKIN_MODE = stringPreferencesKey("skin_mode") // "default" or "pearl_white"
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { it[SERVER_URL] ?: "" }
@@ -102,5 +103,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setSkippedVersionCode(versionCode: Int) {
         context.dataStore.edit { it[SKIPPED_VERSION_CODE] = versionCode }
+    }
+
+    val skinMode: Flow<String> = context.dataStore.data.map { it[SKIN_MODE] ?: "default" }
+
+    suspend fun setSkinMode(mode: String) {
+        context.dataStore.edit { it[SKIN_MODE] = mode }
     }
 }
