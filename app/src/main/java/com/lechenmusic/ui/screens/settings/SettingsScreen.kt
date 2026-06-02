@@ -30,6 +30,7 @@ fun SettingsScreen(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val skinMode by viewModel.skinMode.collectAsState()
     val cacheSize by viewModel.cacheSize.collectAsState()
     val serverStats by viewModel.serverStats.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
@@ -38,6 +39,7 @@ fun SettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showSkinDialog by remember { mutableStateOf(false) }
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
@@ -97,6 +99,12 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column {
                     SettingsToggleItem(icon = Icons.Default.Settings, iconBg = Color(0xFFA55EEA).copy(alpha = 0.15f), label = "深色模式", checked = themeMode == "dark", onCheckedChange = { viewModel.setThemeMode(if (it) "dark" else "light") })
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    val skinLabel = when (skinMode) {
+                        "pearl_white" -> "🐚 珍珠白"
+                        else -> "🎨 默认"
+                    }
+                    SettingsClickItem(icon = Icons.Default.ColorLens, iconBg = Color(0xFFE8648C).copy(alpha = 0.15f), label = "皮肤主题", value = skinLabel, onClick = { showSkinDialog = true })
                 }
             }
         }
@@ -255,6 +263,51 @@ fun SettingsScreen(
         AlertDialog(onDismissRequest = { showLogoutDialog = false }, title = { Text("切换服务器") }, text = { Text("确定要退出当前服务器吗？退出后需要重新输入服务器地址登录。") }, confirmButton = {
             TextButton(onClick = { viewModel.logout(); showLogoutDialog = false; onLogout() }) { Text("确定", color = MaterialTheme.colorScheme.primary) }
         }, dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("取消") } })
+    }
+
+    // 皮肤选择弹窗
+    if (showSkinDialog) {
+        val skins = listOf(
+            "default" to "🎨 默认",
+            "pearl_white" to "🐚 珍珠白"
+        )
+        AlertDialog(
+            onDismissRequest = { showSkinDialog = false },
+            title = { Text("选择皮肤", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    skins.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setSkinMode(key)
+                                    showSkinDialog = false
+                                }
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(label, fontSize = 15.sp)
+                            if (skinMode == key) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        if (key != skins.last().first) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSkinDialog = false }) { Text("取消") }
+            }
+        )
     }
 }
 
