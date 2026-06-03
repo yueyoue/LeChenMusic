@@ -102,9 +102,15 @@ object UpdateChecker {
 
             val updateLog = bodyText
                 .lines()
-                .filter { !it.trim().startsWith("versionCode:") }
+                .filter { line ->
+                    val trimmed = line.trim()
+                    !trimmed.startsWith("versionCode:") &&
+                    !trimmed.startsWith("## ") &&
+                    trimmed.isNotEmpty()
+                }
                 .joinToString("\n")
                 .trim()
+                .ifEmpty { "版本 $versionName 已发布，请更新体验最新功能" }
 
             UpdateInfo(versionCode, versionName, apkUrl, updateLog)
         } catch (e: Exception) {
