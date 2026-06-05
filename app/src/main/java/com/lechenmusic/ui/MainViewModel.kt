@@ -322,15 +322,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
             }
 
-            // Load daily random songs - use cache if same day, only refresh on user click
+            // Load daily random songs - use cache if same day AND has enough songs
             val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
             val cachedDate = settings.cachedDailySongsDate.first()
             val cachedDailyJson = settings.cachedDailySongsJson.first()
-            if (cachedDate == today && cachedDailyJson.isNotBlank()) {
+            val useCache = cachedDate == today && cachedDailyJson.isNotBlank()
+            if (useCache) {
                 try {
                     val type = object : TypeToken<List<Song>>() {}.type
                     val cachedSongs: List<Song> = Gson().fromJson(cachedDailyJson, type)
-                    if (cachedSongs.isNotEmpty()) {
+                    // Cache must have at least 5 songs (display count), otherwise re-fetch
+                    if (cachedSongs.size >= 5) {
                         _dailySongs.value = cachedSongs
                     } else {
                         repository.getRandomSongs(20).onSuccess {
