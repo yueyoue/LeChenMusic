@@ -55,11 +55,20 @@ object UpdateChecker {
 
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
-            val info = tryCustomServer(currentVersionCode)
-            if (info != null) {
-                Log.d(TAG, "Found update from custom server: v${info.versionName} (${info.versionCode})")
-                return@withContext info
+            // Try custom server with retry (more reliable, user's own server)
+            for (attempt in 1..3) {
+                val info = tryCustomServer(currentVersionCode)
+                if (info != null) {
+                    Log.d(TAG, "Found update from custom server (attempt $attempt): v${info.versionName} (${info.versionCode})")
+                    return@withContext info
+                }
+                if (attempt < 3) {
+                    Log.d(TAG, "Custom server attempt $attempt failed, retrying...")
+                    delay(1000L * attempt)
+                }
             }
+            // Custom server completely failed, fallback to GitHub
+            Log.w(TAG, "Custom server failed after 3 attempts, trying GitHub...")
             val ghInfo = tryGitHubReleases(currentVersionCode)
             if (ghInfo != null) {
                 Log.d(TAG, "Found update from GitHub: v${ghInfo.versionName} (${ghInfo.versionCode})")
