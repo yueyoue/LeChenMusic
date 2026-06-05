@@ -10,11 +10,14 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -354,53 +357,124 @@ fun PlayerScreen(
 
     // Timer Dialog
     if (showTimerDialog) {
+        var customMinutes by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showTimerDialog = false },
-            title = { Text("定时停止播放") },
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("定时关闭", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            },
             text = {
-                Column {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Countdown display
                     if (timerRemainingSeconds > 0) {
-                        val remainMin = timerRemainingSeconds / 60
+                        val remainHour = timerRemainingSeconds / 3600
+                        val remainMin = (timerRemainingSeconds % 3600) / 60
                         val remainSec = timerRemainingSeconds % 60
                         Text(
-                            "剩余时间: ${remainMin}分${remainSec}秒",
-                            fontSize = 14.sp,
+                            "剩余 %02d:%02d:%02d".format(remainHour, remainMin, remainSec),
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 12.dp)
+                            modifier = Modifier.padding(bottom = 16.dp)
                         )
-                        Text(
-                            "取消定时",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.cancelTimerWithCountdown()
-                                    showTimerDialog = false
-                                }
-                                .padding(vertical = 14.dp),
-                            fontSize = 15.sp,
-                            color = Color.Red
-                        )
-                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
-                    listOf("15分钟" to 15, "30分钟" to 30, "1小时" to 60, "2小时" to 120).forEach { (label, min) ->
-                        Text(
-                            label,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
+
+                    // Preset time buttons
+                    val presets = listOf("15分钟" to 15, "30分钟" to 30, "45分钟" to 45, "60分钟" to 60, "90分钟" to 90)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 3
+                    ) {
+                        presets.forEach { (label, min) ->
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .clickable {
+                                        viewModel.setTimerWithCountdown(min)
+                                        showTimerDialog = false
+                                    }
+                            ) {
+                                Text(
+                                    label,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Custom time input
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = customMinutes,
+                            onValueChange = { customMinutes = it.filter { c -> c.isDigit() } },
+                            placeholder = { Text("自定义时间", fontSize = 14.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                        )
+                        Button(
+                            onClick = {
+                                val min = customMinutes.toIntOrNull()
+                                if (min != null && min > 0) {
                                     viewModel.setTimerWithCountdown(min)
                                     showTimerDialog = false
+                                } else {
+                                    Toast.makeText(context, "请输入有效时间", Toast.LENGTH_SHORT).show()
                                 }
-                                .padding(vertical = 14.dp),
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("设置", fontSize = 14.sp)
+                        }
+                    }
+
+                    // Cancel timer button
+                    if (timerRemainingSeconds > 0) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                viewModel.cancelTimerWithCountdown()
+                                showTimerDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B))
+                        ) {
+                            Text("取消定时", fontSize = 15.sp, color = Color.White)
+                        }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showTimerDialog = false }) { Text("取消") }
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTimerDialog = false }) { Text("关闭") }
             }
         )
     }

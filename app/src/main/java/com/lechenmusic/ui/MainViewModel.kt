@@ -678,12 +678,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _timerRemainingSeconds.value = (_timerRemainingSeconds.value - 1).coerceAtLeast(0)
             }
             // Timer reached zero - force pause playback
-            // Use both methods for reliability
-            playerManager.forcePause()
-            // Also try direct player pause via the service
             try {
                 playerManager.forcePause()
-            } catch (_: Exception) { }
+                // If still playing after forcePause, toggle it
+                kotlinx.coroutines.delay(300)
+                if (playerManager.isPlaying.value) {
+                    playerManager.togglePlayPause()
+                }
+                // Final force pause for reliability
+                kotlinx.coroutines.delay(200)
+                playerManager.forcePause()
+            } catch (_: Exception) {
+                try { playerManager.forcePause() } catch (_: Exception) {}
+            }
         }
     }
 
