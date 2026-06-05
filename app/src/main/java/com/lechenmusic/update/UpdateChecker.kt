@@ -152,7 +152,13 @@ object UpdateChecker {
                 return null
             }
             val body = response.body?.string() ?: return null
-            val json = JSONObject(body)
+            // Fix common JSON issues: missing commas between key-value pairs
+            val fixedBody = body.replace(Regex("}(\\s*\")"), "},$1")
+                .replace(Regex("(\"\\s*:\\s*\\d+)(\\s*\")"), "$1,$2")
+                .replace(Regex("(\"\\s*:\\s*\"[^\"]*\")(\\s*\")"), "$1,$2")
+                .replace(Regex("(\"\\s*:\\s*true|\"\\s*:\\s*false)(\\s*\")"), "$1,$2")
+                .replace(Regex(",\\s*}"), "}")  // Remove trailing commas
+            val json = JSONObject(fixedBody)
             val info = UpdateInfo(
                 versionCode = json.getInt("versionCode"),
                 versionName = json.getString("versionName"),
