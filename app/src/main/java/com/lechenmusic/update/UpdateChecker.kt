@@ -28,7 +28,8 @@ data class UpdateInfo(
     val versionCode: Int,
     val versionName: String,
     val apkUrl: String,
-    val updateLog: String
+    val updateLog: String,
+    val source: String = "线路1"  // "线路1" = 自定义服务器, "备用服务器" = GitHub
 )
 
 object UpdateChecker {
@@ -121,7 +122,7 @@ object UpdateChecker {
                 .trim()
                 .ifEmpty { "版本 $versionName 已发布，请更新体验最新功能" }
 
-            UpdateInfo(versionCode, versionName, apkUrl, updateLog)
+            UpdateInfo(versionCode, versionName, apkUrl, updateLog, source = "备用服务器")
         } catch (e: Exception) {
             Log.e(TAG, "GitHub check failed", e)
             null
@@ -156,7 +157,8 @@ object UpdateChecker {
                 versionCode = json.getInt("versionCode"),
                 versionName = json.getString("versionName"),
                 apkUrl = json.getString("apkUrl"),
-                updateLog = json.optString("updateLog", "")
+                updateLog = json.optString("updateLog", ""),
+                source = "线路1"
             )
             Log.d(TAG, "Custom server version: ${info.versionCode}, current: $currentVersionCode")
             if (info.versionCode > currentVersionCode) info else null
@@ -215,6 +217,7 @@ object UpdateChecker {
     suspend fun downloadApk(
         context: Context,
         apkUrl: String,
+        source: String = "线路1",
         onProgress: ((String) -> Unit)? = null
     ): File? {
         return withContext(Dispatchers.IO) {
@@ -224,11 +227,11 @@ object UpdateChecker {
             )
             if (apkFile.exists()) apkFile.delete()
 
-            Log.d(TAG, "=== Starting download from: $apkUrl ===")
+            Log.d(TAG, "=== Starting download from: $apkUrl (source: $source) ===")
 
             // === 第一步：标准下载（每次用全新 client） ===
             for (attempt in 1..3) {
-                val attemptMsg = if (attempt == 1) "正在下载..." else "重试中 ($attempt/3)..."
+                val attemptMsg = if (attempt == 1) "通过${source}正在下载..." else "通过${source}重试中 ($attempt/3)..."
                 withContext(Dispatchers.Main) { onProgress?.invoke(attemptMsg) }
                 Log.d(TAG, "Standard download attempt $attempt/3")
 
@@ -255,7 +258,7 @@ object UpdateChecker {
             }
 
             // === 第二步：信任所有证书下载（解决证书链不完整问题） ===
-            withContext(Dispatchers.Main) { onProgress?.invoke("正在尝试备用连接...") }
+            withContext(Dispatchers.Main) { onProgress?.invoke("通过${source}尝试备用连接...") }
             Log.d(TAG, "Trying trust-all download (HTTP/1.1)")
 
             try {
@@ -277,7 +280,7 @@ object UpdateChecker {
             // === 第三步：GitHub 回退 ===
             val githubUrl = getGitHubApkUrl()
             if (githubUrl != null && githubUrl != apkUrl) {
-                withContext(Dispatchers.Main) { onProgress?.invoke("正在从 GitHub 下载...") }
+                withContext(Dispatchers.Main) { onProgress?.invoke("通过备用服务器正在下载...") }
                 Log.d(TAG, "Trying GitHub fallback: $githubUrl")
                 for (attempt in 1..2) {
                     try {
@@ -294,6 +297,7 @@ object UpdateChecker {
                 }
                 // GitHub trust-all
                 try {
+                    withContext(Dispatchers.Main) { onProgress?.invoke("通过备用服务器尝试连接...") }
                     val trustAllClient = createTrustAllClient()
                     val result = downloadFile(trustAllClient, apkFile, githubUrl, onProgress)
                     if (result != null) {

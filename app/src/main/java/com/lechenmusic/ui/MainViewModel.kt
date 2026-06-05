@@ -177,11 +177,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadUpdate() {
         val info = _updateInfo.value ?: return
         viewModelScope.launch {
-            _updateStatus.value = "正在下载..."
+            _updateStatus.value = "通过${info.source}正在下载..."
             val context = getApplication<Application>()
             val apkFile = UpdateChecker.downloadApk(
                 context = context,
                 apkUrl = info.apkUrl,
+                source = info.source,
                 onProgress = { _updateStatus.value = it }
             )
             if (apkFile != null) {
