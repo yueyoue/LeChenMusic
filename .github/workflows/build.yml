@@ -47,8 +47,6 @@ jobs:
           body: |
             ## LeChenMusic ${{ steps.version.outputs.version_name }}
             versionCode: ${{ steps.version.outputs.version_code }}
-            - 修复编译错误，恢复 MediaSessionCompat + IMPORTANCE_HIGH
-            - 修复更新内容不显示的问题
           files: app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
