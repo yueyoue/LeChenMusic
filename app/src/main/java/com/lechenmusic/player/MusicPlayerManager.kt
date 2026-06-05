@@ -81,6 +81,11 @@ class MusicPlayerManager(private val context: Context) {
     private var timerJob: kotlinx.coroutines.Job? = null
     private var alarmReceiver: BroadcastReceiver? = null
 
+    // Timer stop flag: when true, player should not auto-resume
+    @Volatile
+    var timerExpired: Boolean = false
+        private set
+
     var onSongAutoAdvanced: ((Song) -> Unit)? = null
 
     companion object {
@@ -109,6 +114,11 @@ class MusicPlayerManager(private val context: Context) {
                 addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         _isPlaying.value = isPlaying
+                        // If timer expired and player auto-resumed (e.g. audio focus regain), force pause
+                        if (isPlaying && timerExpired) {
+                            player?.pause()
+                            return
+                        }
                         updateNotification()
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -161,7 +171,10 @@ class MusicPlayerManager(private val context: Context) {
         alarmReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 when (intent?.action) {
-                    ACTION_STOP_PLAYBACK -> player?.pause()
+                    ACTION_STOP_PLAYBACK -> {
+                        timerExpired = true
+                        player?.pause()
+                    }
                     ACTION_TOGGLE_FAVORITE -> toggleStar()
                     ACTION_PREV -> skipPrevious()
                     ACTION_NEXT -> skipNext()
@@ -364,6 +377,8 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun togglePlayPause() {
+        // User manually pressed play, clear timer expired flag
+        timerExpired = false
         player?.let {
             if (it.isPlaying) it.pause() else it.play()
         }
@@ -479,6 +494,11 @@ class MusicPlayerManager(private val context: Context) {
         alarmManager.cancel(pendingIntent)
         timerJob?.cancel()
         timerJob = null
+        timerExpired = false
+    }
+
+    fun clearTimerExpired() {
+        timerExpired = false
     }
 
     private fun updateCurrentFromPlayer() {

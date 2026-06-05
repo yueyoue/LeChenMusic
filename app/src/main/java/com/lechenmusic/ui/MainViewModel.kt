@@ -333,19 +333,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (cachedSongs.isNotEmpty()) {
                         _dailySongs.value = cachedSongs
                     } else {
-                        repository.getRandomSongs(4).onSuccess {
+                        repository.getRandomSongs(20).onSuccess {
                             _dailySongs.value = it
                             settings.saveCachedDailySongs(Gson().toJson(it), today)
                         }
                     }
                 } catch (_: Exception) {
-                    repository.getRandomSongs(4).onSuccess {
+                    repository.getRandomSongs(20).onSuccess {
                         _dailySongs.value = it
                         settings.saveCachedDailySongs(Gson().toJson(it), today)
                     }
                 }
             } else {
-                repository.getRandomSongs(4).onSuccess {
+                repository.getRandomSongs(20).onSuccess {
                     _dailySongs.value = it
                     settings.saveCachedDailySongs(Gson().toJson(it), today)
                 }
@@ -543,7 +543,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshDailySongs() {
         viewModelScope.launch {
-            repository.getRandomSongs(4).onSuccess {
+            repository.getRandomSongs(20).onSuccess {
                 _dailySongs.value = it
                 val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
                 settings.saveCachedDailySongs(Gson().toJson(it), today)
@@ -670,13 +670,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setTimerWithCountdown(minutes: Int) {
         // Cancel any existing timer
         cancelTimerWithCountdown()
+        // Clear timer expired flag for new timer
+        playerManager.clearTimerExpired()
         // Also set alarm as backup (works even if app is killed)
         playerManager.setTimer(minutes)
         _timerRemainingSeconds.value = minutes * 60L
+        val targetTime = System.currentTimeMillis() + minutes * 60 * 1000L
         countdownJob = viewModelScope.launch {
-            while (_timerRemainingSeconds.value > 0) {
-                kotlinx.coroutines.delay(1000)
-                _timerRemainingSeconds.value = (_timerRemainingSeconds.value - 1).coerceAtLeast(0)
+            // Use absolute time to avoid drift when app goes to background
+            while (true) {
+                kotlinx.coroutines.delay(500)
+                val remaining = ((targetTime - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+                _timerRemainingSeconds.value = remaining
+                if (remaining <= 0) break
             }
             // Timer reached zero - force pause playback
             try {

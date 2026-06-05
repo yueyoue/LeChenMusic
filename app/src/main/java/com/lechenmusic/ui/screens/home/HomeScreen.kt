@@ -99,7 +99,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(28.dp))
                 SectionHeader("🎯 每日推荐", "换一批 ↻") { viewModel.refreshDailySongs() }
             }
-            items(dailySongs) { song ->
+            items(dailySongs.take(5)) { song ->
                 SongItem(
                     song = song,
                     serverUrl = serverUrl,
