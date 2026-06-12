@@ -22,7 +22,13 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata as Media3Metadata
 import androidx.media3.common.Player
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import okhttp3.OkHttpClient
 import androidx.media3.session.MediaSession
 import com.lechenmusic.MainActivity
 import com.lechenmusic.R
@@ -47,6 +53,11 @@ class MusicPlayerManager(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaSession: MediaSession? = null
     private var mediaSessionCompat: MediaSessionCompat? = null
+
+    // Music disk cache
+    private var musicCache: SimpleCache? = null
+    private var cacheDataSourceFactory: CacheDataSource.Factory? = null
+    private var currentCacheSizeBytes: Long = 4L * 1024 * 1024 * 1024 // default 4GB
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
@@ -100,6 +111,7 @@ class MusicPlayerManager(private val context: Context) {
 
     fun init(repo: MusicRepository) {
         repository = repo
+        initCache()
         player = ExoPlayer.Builder(context)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -108,6 +120,7 @@ class MusicPlayerManager(private val context: Context) {
                     .build(),
                 true
             )
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory!!))
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build().apply {
@@ -205,6 +218,66 @@ class MusicPlayerManager(private val context: Context) {
                 context.startService(intent)
             }
         } catch (_: Exception) { }
+    }
+
+    private fun initCache() {
+        val cacheDir = java.io.File(context.cacheDir, "music_cache")
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+        val evictor = LeastRecentlyUsedCacheEvictor(currentCacheSizeBytes)
+        musicCache = SimpleCache(cacheDir, evictor, androidx.media3.database.StandaloneDatabaseProvider(context))
+        val okHttpClient = OkHttpClient.Builder().build()
+        val upstreamFactory = OkHttpDataSource.Factory(okHttpClient)
+        cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(musicCache!!)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    /** Update cache max size (called when user changes cache setting) */
+    fun updateCacheSize(sizeGb: Int) {
+        val newBytes = sizeGb.toLong() * 1024 * 1024 * 1024
+        if (newBytes == currentCacheSizeBytes) return
+        currentCacheSizeBytes = newBytes
+        // Re-create cache with new size
+        musicCache?.release()
+        val cacheDir = java.io.File(context.cacheDir, "music_cache")
+        val evictor = LeastRecentlyUsedCacheEvictor(newBytes)
+        musicCache = SimpleCache(cacheDir, evictor, androidx.media3.database.StandaloneDatabaseProvider(context))
+        val okHttpClient = OkHttpClient.Builder().build()
+        val upstreamFactory = OkHttpDataSource.Factory(okHttpClient)
+        cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(musicCache!!)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    /** Get current cache size in bytes */
+    fun getCacheBytes(): Long {
+        return try { musicCache?.cacheSpace ?: 0 } catch (_: Exception) { 0 }
+    }
+
+    /** Clear all cached music files */
+    fun clearMusicCache() {
+        try {
+            musicCache?.let { cache ->
+                val keys = cache.keys
+                for (key in keys) {
+                    cache.removeResource(key)
+                }
+            }
+        } catch (_: Exception) {
+            // Fallback: delete cache directory
+            try {
+                val cacheDir = java.io.File(context.cacheDir, "music_cache")
+                if (cacheDir.exists()) {
+                    cacheDir.deleteRecursively()
+                    cacheDir.mkdirs()
+                }
+                // Re-init cache after clearing
+                musicCache?.release()
+                initCache()
+            } catch (_: Exception) {}
+        }
     }
 
     private fun createNotificationChannel() {
@@ -535,6 +608,8 @@ class MusicPlayerManager(private val context: Context) {
         }
         mediaSession = null
         player = null
+        musicCache?.release()
+        musicCache = null
         try {
             val intent = Intent(context, MusicPlaybackService::class.java)
             context.stopService(intent)

@@ -63,7 +63,8 @@ fun SettingsScreen(
     var otherDataSize by remember { mutableStateOf("计算中...") }
 
     LaunchedEffect(Unit) {
-        musicCacheSize = calculateCacheSize(context, "music_cache")
+        val cacheBytes = viewModel.playerManager.getCacheBytes()
+        musicCacheSize = if (cacheBytes > 0) formatSize(cacheBytes) else calculateCacheSize(context, "music_cache")
         otherDataSize = calculateOtherDataSize(context)
     }
 
@@ -116,7 +117,8 @@ fun SettingsScreen(
             SectionTitle("存储空间")
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    val musicBytes = getCacheSizeBytes(context, "music_cache")
+                    val exoCacheBytes = viewModel.playerManager.getCacheBytes()
+                    val musicBytes = if (exoCacheBytes > 0) exoCacheBytes else getCacheSizeBytes(context, "music_cache")
                     val otherBytes = getOtherDataSizeBytes(context)
                     val totalUsed = musicBytes + otherBytes
                     val maxBytes = cacheSize.toLong() * 1024 * 1024 * 1024
@@ -133,7 +135,7 @@ fun SettingsScreen(
                         Text("📦 其他数据 $otherDataSize", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedButton(onClick = { clearCache(context, "music_cache"); musicCacheSize = "0 B"; otherDataSize = calculateOtherDataSize(context) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                    OutlinedButton(onClick = { viewModel.playerManager.clearMusicCache(); musicCacheSize = "0 B"; otherDataSize = calculateOtherDataSize(context) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
                         Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("清除缓存", color = MaterialTheme.colorScheme.primary)

@@ -56,25 +56,26 @@ object UpdateChecker {
 
     suspend fun check(currentVersionCode: Int): UpdateInfo? {
         return withContext(Dispatchers.IO) {
-            // Try custom server with retry (more reliable, user's own server)
-            for (attempt in 1..3) {
-                val info = tryCustomServer(currentVersionCode)
-                if (info != null) {
-                    Log.d(TAG, "Found update from custom server (attempt $attempt): v${info.versionName} (${info.versionCode})")
-                    return@withContext info
-                }
-                if (attempt < 3) {
-                    Log.d(TAG, "Custom server attempt $attempt failed, retrying...")
-                    delay(1000L * attempt)
-                }
+            // Try both custom server and GitHub, pick the newest version
+            val customInfo = try {
+                tryCustomServer(currentVersionCode)
+            } catch (e: Exception) {
+                Log.e(TAG, "Custom server check failed", e)
+                null
             }
-            // Custom server completely failed, fallback to GitHub
-            Log.w(TAG, "Custom server failed after 3 attempts, trying GitHub...")
-            val ghInfo = tryGitHubReleases(currentVersionCode)
-            if (ghInfo != null) {
-                Log.d(TAG, "Found update from GitHub: v${ghInfo.versionName} (${ghInfo.versionCode})")
+            val githubInfo = try {
+                tryGitHubReleases(currentVersionCode)
+            } catch (e: Exception) {
+                Log.e(TAG, "GitHub check failed", e)
+                null
             }
-            ghInfo
+            // Return whichever has higher versionCode
+            val candidates = listOfNotNull(customInfo, githubInfo)
+            val best = candidates.maxByOrNull { it.versionCode }
+            if (best != null) {
+                Log.d(TAG, "Found update: v${best.versionName} (${best.versionCode}) from ${best.source}")
+            }
+            best
         }
     }
 

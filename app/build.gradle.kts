@@ -11,8 +11,8 @@ android {
         applicationId = "com.lechenmusic"
         minSdk = 26
         targetSdk = 34
-        versionCode = 37
-        versionName = "v1.3.7"
+        versionCode = 38
+        versionName = "1.3.8"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -101,6 +101,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-session:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.2.1")
 
     // Media compat for notification MediaStyle
     implementation("androidx.media:media:1.7.0")

@@ -309,6 +309,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setCacheSize(sizeGb: Int) {
         viewModelScope.launch {
             settings.setCacheSize(sizeGb)
+            playerManager.updateCacheSize(sizeGb)
         }
     }
 
@@ -574,24 +575,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Step 2: Fetch fresh data from server
             try {
                 repository.getAllSongs().onSuccess { serverSongs ->
-                    val cachedIds = _allSongs.value.map { it.id }.toSet()
+                    val cachedList = _allSongs.value
+                    val cachedIds = cachedList.map { it.id }.toSet()
                     val newSongs = serverSongs.filter { it.id !in cachedIds }
 
-                    if (newSongs.isNotEmpty() && _allSongs.value.isNotEmpty()) {
-                        // Merge: keep cached + add new songs
-                        val merged = _allSongs.value + newSongs
+                    if (newSongs.isNotEmpty()) {
+                        // Merge: keep cached + add new songs (always grow, never shrink)
+                        val merged = cachedList + newSongs
                         _allSongs.value = merged
                         if (showToast) _toastMessage.value = "发现 ${newSongs.size} 首新歌曲"
-                        // Save merged list to cache
                         saveSongsToCache(merged)
-                    } else if (_allSongs.value.isEmpty()) {
+                    } else if (serverSongs.size >= cachedList.size) {
+                        // Server has more (or equal) songs — safe to update
                         _allSongs.value = serverSongs
                         saveSongsToCache(serverSongs)
-                    } else {
-                        // No new songs, just update cache with latest server data
-                        saveSongsToCache(serverSongs)
-                        _allSongs.value = serverSongs
                     }
+                    // else: server returned fewer songs (non-deterministic search),
+                    //       keep cached list — do NOT replace with smaller data
                     _allSongsLoading.value = false
                 }.onFailure {
                     if (_allSongs.value.isEmpty()) {

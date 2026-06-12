@@ -278,9 +278,34 @@ class MusicRepository {
             val allSongs = mutableListOf<Song>()
             val seenIds = mutableSetOf<String>()
 
-            // Strategy 1: Use search3 with broad queries to get songs fast
-            // Search with common single letters to cover most songs
-            val searchQueries = listOf("a", "e", "i", "o", "u", "the", "s", "t", "n", "r")
+            // Strategy 1: Paginate through ALL albums to get every song
+            val albumTypes = listOf("newest", "recent", "frequent", "random", "starred", "alphabeticalByName")
+            for (type in albumTypes) {
+                var offset = 0
+                val pageSize = 500
+                while (true) {
+                    try {
+                        val page = api!!.getAlbumList2(username, password, type = type, size = pageSize, offset = offset)
+                        val albums = page.subsonicResponse.albumList2?.album ?: emptyList()
+                        for (album in albums) {
+                            try {
+                                val detail = api!!.getAlbum(username, password, album.id)
+                                detail.subsonicResponse.album?.song?.forEach { song ->
+                                    if (seenIds.add(song.id)) {
+                                        allSongs.add(song)
+                                    }
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        if (albums.size < pageSize) break
+                        offset += pageSize
+                        if (offset > 50000) break // safety limit
+                    } catch (_: Exception) { break }
+                }
+            }
+
+            // Strategy 2: Supplement with search queries for songs not in any album
+            val searchQueries = listOf("a", "e", "i", "o", "u", "the", "s", "t", "n", "r", "l", "m", "d", "c", "b")
             for (query in searchQueries) {
                 try {
                     val result = api!!.search(username, password, query, songCount = 500)
@@ -289,25 +314,6 @@ class MusicRepository {
                         if (seenIds.add(song.id)) {
                             allSongs.add(song)
                         }
-                    }
-                } catch (_: Exception) { }
-            }
-
-            // Strategy 2: Also get songs from starred, recent, frequent albums
-            val albumTypes = listOf("newest", "recent", "frequent", "random", "starred")
-            for (type in albumTypes) {
-                try {
-                    val page = api!!.getAlbumList2(username, password, type = type, size = 100)
-                    val albums = page.subsonicResponse.albumList2?.album ?: emptyList()
-                    for (album in albums) {
-                        try {
-                            val detail = api!!.getAlbum(username, password, album.id)
-                            detail.subsonicResponse.album?.song?.forEach { song ->
-                                if (seenIds.add(song.id)) {
-                                    allSongs.add(song)
-                                }
-                            }
-                        } catch (_: Exception) { }
                     }
                 } catch (_: Exception) { }
             }

@@ -1,6 +1,6 @@
 {
-  "versionCode": 37,
-  "versionName": "1.3.7",
-  "apkUrl": "https://yy.tthsdd.top/musicapp/update/app-release.apk",
-  "updateLog": "1. 修复定时停止播放切换微信后失效的问题\n2. 每日推荐增加至20首，首页显示5首\n3. 版本升级至 v1.3.7"
+    "versionCode": 38,
+    "versionName": "1.3.8",
+    "apkUrl": "https://github.com/yueyoue/LeChenMusic/releases/download/1.3.8/app-release.apk",
+    "updateLog": "1. 新增音乐缓存功能，播放过的歌曲自动缓存到本地\n2. 修复首页歌曲数量加载波动的问题\n3. 修复版本更新检测不准确的问题\n4. 存储空间管理优化"
 }
