@@ -21,7 +21,6 @@ import com.lechenmusic.data.model.Playlist
 import com.lechenmusic.ui.MainViewModel
 import com.lechenmusic.ui.components.CoverImage
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllPlaylistsScreen(
     viewModel: MainViewModel,
@@ -33,23 +32,23 @@ fun AllPlaylistsScreen(
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("全部歌单", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top bar - no extra padding
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+            }
+            Text("全部歌单", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
-    ) { paddingValues ->
+
         if (playlists.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -61,9 +60,7 @@ fun AllPlaylistsScreen(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

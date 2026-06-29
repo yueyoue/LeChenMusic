@@ -22,4 +22,5 @@ sealed class Screen(val route: String) {
     }
     object Radio : Screen("radio")
     object AllPlaylists : Screen("all_playlists")
+    object CachedMusic : Screen("cached_music")
 }

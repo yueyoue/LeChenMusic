@@ -40,7 +40,8 @@ fun HomeScreen(
     onNavigateToRadio: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
     onNavigateToArtists: () -> Unit = {},
-    onNavigateToAllPlaylists: () -> Unit = {}
+    onNavigateToAllPlaylists: () -> Unit = {},
+    onNavigateToCachedMusic: () -> Unit = {}
 ) {
     val newestAlbums by viewModel.newestAlbums.collectAsState()
     val randomAlbums by viewModel.randomAlbums.collectAsState()
@@ -90,7 +91,7 @@ fun HomeScreen(
             }
         }
 
-        // 快捷入口:歌手、专辑、歌单、电台
+        // 快捷入口:歌手、专辑、歌单、电台、缓存
         item {
             Row(
                 modifier = Modifier
@@ -121,6 +122,12 @@ fun HomeScreen(
                     label = "电台",
                     color = Color(0xFFFF4757),
                     onClick = onNavigateToRadio
+                )
+                QuickAccessButton(
+                    icon = Icons.Default.Download,
+                    label = "缓存",
+                    color = Color(0xFFFFA502),
+                    onClick = onNavigateToCachedMusic
                 )
             }
         }
@@ -195,34 +202,6 @@ fun HomeScreen(
                         )
                     }
                 }
-            }
-        }
-
-        // 缓存音乐
-        item {
-            Spacer(modifier = Modifier.height(28.dp))
-            SectionHeader("💾 缓存音乐", if (cachedSongs.isNotEmpty()) "全部 ›" else null) {
-                if (cachedSongs.isNotEmpty()) onNavigateToAllSongs()
-            }
-        }
-        if (cachedSongs.isNotEmpty()) {
-            items(cachedSongs.take(5)) { song ->
-                SongItem(
-                    song = song,
-                    serverUrl = serverUrl,
-                    username = username,
-                    password = password,
-                    onClick = { onSongClick(song, cachedSongs) }
-                )
-            }
-        } else {
-            item {
-                Text(
-                    "暂无缓存音乐,播放过的歌曲将自动缓存",
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
             }
         }
 
