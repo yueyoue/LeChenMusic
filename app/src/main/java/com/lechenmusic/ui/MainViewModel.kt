@@ -92,6 +92,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _allSongsLoadError = MutableStateFlow<String?>(null)
     val allSongsLoadError: StateFlow<String?> = _allSongsLoadError.asStateFlow()
 
+    // Cached songs (songs that have been cached by ExoPlayer for offline playback)
+    private val _cachedSongs = MutableStateFlow<List<Song>>(emptyList())
+    val cachedSongs: StateFlow<List<Song>> = _cachedSongs.asStateFlow()
+
     // Internet Radio Stations
     private val _radioStations = MutableStateFlow<List<InternetRadioStation>>(emptyList())
     val radioStations: StateFlow<List<InternetRadioStation>> = _radioStations.asStateFlow()
@@ -414,8 +418,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Load recent played songs from stored IDs
             loadRecentPlayedSongs()
 
+            // Load cached songs (songs that are in ExoPlayer cache + recently played)
+            loadCachedSongs()
+
             // Load server stats
             repository.getServerStats().onSuccess { _serverStats.value = it }
+        }
+    }
+
+    fun loadCachedSongs() {
+        viewModelScope.launch {
+            val cachedIds = playerManager.getCachedSongIds()
+            // Recently played songs that are also in the ExoPlayer cache
+            val recentCached = _recentPlayedSongs.value.filter { it.id in cachedIds }
+            // Also include all cached IDs matched from allSongs
+            val allCached = _allSongs.value.filter { it.id in cachedIds }
+            // Merge, deduplicate, recently played first
+            val merged = mutableListOf<Song>()
+            val seenIds = mutableSetOf<String>()
+            for (song in recentCached) {
+                if (seenIds.add(song.id)) merged.add(song)
+            }
+            for (song in allCached) {
+                if (seenIds.add(song.id)) merged.add(song)
+            }
+            _cachedSongs.value = merged
         }
     }
 
@@ -571,6 +598,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             addSongToRecentCache(song)
             // Refresh recent played songs
             loadRecentPlayedSongs()
+            // Refresh cached songs after a delay (allow ExoPlayer to cache)
+            kotlinx.coroutines.delay(3000)
+            loadCachedSongs()
         }
     }
 

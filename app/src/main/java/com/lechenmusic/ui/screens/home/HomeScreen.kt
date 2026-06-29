@@ -52,17 +52,11 @@ fun HomeScreen(
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
     val allSongs by viewModel.allSongs.collectAsState()
-
-    // 缓存音乐：从 allSongs 中取已缓存的歌曲（离线可播放的）
-    val cachedSongs = remember(allSongs) {
-        // 显示所有歌曲作为"缓存音乐"模块内容
-        // 实际离线播放能力取决于 ExoPlayer 缓存
-        allSongs.take(20)
-    }
+    val cachedSongs by viewModel.cachedSongs.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 160.dp)
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         // 搜索框
         item {
@@ -96,7 +90,7 @@ fun HomeScreen(
             }
         }
 
-        // 快捷入口：歌手、专辑、歌单、电台
+        // 快捷入口:歌手、专辑、歌单、电台
         item {
             Row(
                 modifier = Modifier
@@ -120,7 +114,7 @@ fun HomeScreen(
                     icon = Icons.Default.LibraryMusic,
                     label = "歌单",
                     color = Color(0xFF2ED573),
-                    onClick = { viewModel.loadHomeData() }
+                    onClick = onNavigateToAllPlaylists
                 )
                 QuickAccessButton(
                     icon = Icons.Default.Headphones,
@@ -207,7 +201,9 @@ fun HomeScreen(
         // 缓存音乐
         item {
             Spacer(modifier = Modifier.height(28.dp))
-            SectionHeader("💾 缓存音乐", if (cachedSongs.isNotEmpty()) "全部 ›" else null) {}
+            SectionHeader("💾 缓存音乐", if (cachedSongs.isNotEmpty()) "全部 ›" else null) {
+                if (cachedSongs.isNotEmpty()) onNavigateToAllSongs()
+            }
         }
         if (cachedSongs.isNotEmpty()) {
             items(cachedSongs.take(5)) { song ->
@@ -222,7 +218,7 @@ fun HomeScreen(
         } else {
             item {
                 Text(
-                    "暂无缓存音乐，播放过的歌曲将自动缓存",
+                    "暂无缓存音乐,播放过的歌曲将自动缓存",
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp

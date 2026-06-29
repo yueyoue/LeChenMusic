@@ -256,6 +256,22 @@ class MusicPlayerManager(private val context: Context) {
         return try { musicCache?.cacheSpace ?: 0 } catch (_: Exception) { 0 }
     }
 
+    /** Get song IDs that are fully cached locally */
+    fun getCachedSongIds(): Set<String> {
+        return try {
+            val cache = musicCache ?: return emptySet()
+            val ids = mutableSetOf<String>()
+            for (key in cache.keys) {
+                // Stream URL format: .../rest/stream?...&id=<songId>&...
+                val match = Regex("[?&]id=([^&]+)").find(key)
+                if (match != null) {
+                    ids.add(match.groupValues[1])
+                }
+            }
+            ids
+        } catch (_: Exception) { emptySet() }
+    }
+
     /** Clear all cached music files */
     fun clearMusicCache() {
         try {
