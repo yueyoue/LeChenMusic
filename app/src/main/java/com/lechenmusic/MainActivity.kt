@@ -38,6 +38,7 @@ import com.lechenmusic.ui.screens.recent.RecentPlayedScreen
 import com.lechenmusic.ui.screens.search.SearchScreen
 import com.lechenmusic.ui.screens.settings.SettingsScreen
 import com.lechenmusic.ui.screens.songs.AllSongsScreen
+import com.lechenmusic.ui.screens.home.AllPlaylistsScreen
 import com.lechenmusic.ui.theme.LeChenMusicTheme
 import com.lechenmusic.update.UpdateInfo
 
@@ -149,10 +150,8 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
     val tabs = listOf(
         BottomTab(Screen.Home.route, "首页", Icons.Default.Home),
         BottomTab(Screen.Favorites.route, "收藏", Icons.Default.Favorite),
-        BottomTab(Screen.Search.route, "搜索", Icons.Default.Search),
-        BottomTab(Screen.Artists.route, "歌手", Icons.Default.Person),
-        BottomTab(Screen.Albums.route, "专辑", Icons.Default.Album),
-        BottomTab(Screen.AllSongs.route, "歌曲", Icons.Default.MusicNote)
+        BottomTab(Screen.AllSongs.route, "乐库", Icons.Default.MusicNote),
+        BottomTab(Screen.Settings.route, "我的", Icons.Default.Person)
     )
 
     val showBottomBar = currentRoute in tabs.map { it.route }
@@ -229,7 +228,10 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                             onNavigateToFavorites = { navController.navigate(Screen.Favorites.route) },
                             onNavigateToAllSongs = { navController.navigate(Screen.AllSongs.route) },
                             onNavigateToRecentPlayed = { navController.navigate(Screen.RecentPlayed.route) },
-                            onNavigateToRadio = { navController.navigate(Screen.Radio.route) }
+                            onNavigateToRadio = { navController.navigate(Screen.Radio.route) },
+                            onNavigateToSearch = { navController.navigate(Screen.Search.route) },
+                            onNavigateToArtists = { navController.navigate(Screen.Artists.route) },
+                            onNavigateToAllPlaylists = { navController.navigate(Screen.AllPlaylists.route) }
                         )
                     }
                     composable(Screen.Favorites.route) {
@@ -264,6 +266,13 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                             onSongClick = { song, playlist -> viewModel.playSong(song, playlist) }
                         )
                     }
+                    composable(Screen.AllPlaylists.route) {
+                        AllPlaylistsScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() },
+                            onPlaylistClick = { navController.navigate(Screen.PlaylistDetail.createRoute(it)) }
+                        )
+                    }
                     composable(Screen.RecentPlayed.route) {
                         RecentPlayedScreen(
                             viewModel = viewModel,
@@ -274,7 +283,9 @@ fun LeChenMusicApp(viewModel: MainViewModel) {
                     composable(Screen.Settings.route) {
                         SettingsScreen(
                             viewModel = viewModel,
-                            onBack = { navController.popBackStack() },
+                            onBack = {
+                                navController.popBackStack()
+                            },
                             onLogout = {
                                 navController.navigate(Screen.Home.route) {
                                     popUpTo(0) { inclusive = true }

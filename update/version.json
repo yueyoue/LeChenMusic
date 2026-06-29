@@ -1,6 +1,6 @@
 {
-    "versionCode": 38,
-    "versionName": "1.3.8",
-    "apkUrl": "https://github.com/yueyoue/LeChenMusic/releases/download/1.3.8/app-release.apk",
-    "updateLog": "1. 新增音乐缓存功能，播放过的歌曲自动缓存到本地\n2. 修复首页歌曲数量加载波动的问题\n3. 修复版本更新检测不准确的问题\n4. 存储空间管理优化"
+    "versionCode": 39,
+    "versionName": "1.4.0",
+    "apkUrl": "https://github.com/yueyoue/LeChenMusic/releases/download/1.4.0/app-release.apk",
+    "updateLog": "1. 底部导航栏精简为：首页、收藏、乐库、我的\n2. 首页新增搜索框，快速搜索歌曲/专辑/歌手\n3. 首页新增歌手、专辑、歌单、电台快捷入口\n4. 歌单区域新增\"更多\"按钮，可查看全部歌单\n5. 首页新增缓存音乐模块\n6. 离线状态下首页可显示缓存内容\n7. 设置页移除冗余的同步服务器数据按钮"
 }

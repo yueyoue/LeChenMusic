@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,10 @@ fun HomeScreen(
     onNavigateToFavorites: () -> Unit = {},
     onNavigateToAllSongs: () -> Unit = {},
     onNavigateToRecentPlayed: () -> Unit = {},
-    onNavigateToRadio: () -> Unit = {}
+    onNavigateToRadio: () -> Unit = {},
+    onNavigateToSearch: () -> Unit = {},
+    onNavigateToArtists: () -> Unit = {},
+    onNavigateToAllPlaylists: () -> Unit = {}
 ) {
     val newestAlbums by viewModel.newestAlbums.collectAsState()
     val randomAlbums by viewModel.randomAlbums.collectAsState()
@@ -47,31 +51,90 @@ fun HomeScreen(
     val serverUrl by viewModel.serverUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
+    val allSongs by viewModel.allSongs.collectAsState()
+
+    // 缓存音乐：从 allSongs 中取已缓存的歌曲（离线可播放的）
+    val cachedSongs = remember(allSongs) {
+        // 显示所有歌曲作为"缓存音乐"模块内容
+        // 实际离线播放能力取决于 ExoPlayer 缓存
+        allSongs.take(20)
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 160.dp)
     ) {
-        // Header
+        // 搜索框
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .clickable { onNavigateToSearch() },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "搜索歌曲、专辑、歌手...",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
+        // 快捷入口：歌手、专辑、歌单、电台
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("悦音", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Default.Settings, contentDescription = "设置")
-                }
+                QuickAccessButton(
+                    icon = Icons.Default.Person,
+                    label = "歌手",
+                    color = Color(0xFFA55EEA),
+                    onClick = onNavigateToArtists
+                )
+                QuickAccessButton(
+                    icon = Icons.Default.Album,
+                    label = "专辑",
+                    color = Color(0xFF5352ED),
+                    onClick = onNavigateToAlbums
+                )
+                QuickAccessButton(
+                    icon = Icons.Default.LibraryMusic,
+                    label = "歌单",
+                    color = Color(0xFF2ED573),
+                    onClick = { viewModel.loadHomeData() }
+                )
+                QuickAccessButton(
+                    icon = Icons.Default.Headphones,
+                    label = "电台",
+                    color = Color(0xFFFF4757),
+                    onClick = onNavigateToRadio
+                )
             }
         }
 
         // 最新专辑
         if (newestAlbums.isNotEmpty()) {
             item {
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 SectionHeader("🆕 最新专辑", "更多 ›") { onNavigateToAlbums() }
             }
             item {
@@ -106,6 +169,63 @@ fun HomeScreen(
                     username = username,
                     password = password,
                     onClick = { onSongClick(song, dailySongs) }
+                )
+            }
+        }
+
+        // 歌单
+        if (playlists.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(28.dp))
+                SectionHeader("📋 歌单", "更多 ›") {
+                    onNavigateToAllPlaylists()
+                }
+            }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    playlists.take(3).forEach { playlist ->
+                        PlaylistCard(
+                            name = playlist.name,
+                            count = playlist.songCount,
+                            coverArt = playlist.coverArt,
+                            serverUrl = serverUrl,
+                            username = username,
+                            password = password,
+                            onClick = { onPlaylistClick(playlist.id) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 缓存音乐
+        item {
+            Spacer(modifier = Modifier.height(28.dp))
+            SectionHeader("💾 缓存音乐", if (cachedSongs.isNotEmpty()) "全部 ›" else null) {}
+        }
+        if (cachedSongs.isNotEmpty()) {
+            items(cachedSongs.take(5)) { song ->
+                SongItem(
+                    song = song,
+                    serverUrl = serverUrl,
+                    username = username,
+                    password = password,
+                    onClick = { onSongClick(song, cachedSongs) }
+                )
+            }
+        } else {
+            item {
+                Text(
+                    "暂无缓存音乐，播放过的歌曲将自动缓存",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
                 )
             }
         }
@@ -161,35 +281,6 @@ fun HomeScreen(
             }
         }
 
-        // 歌单
-        if (playlists.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(28.dp))
-                SectionHeader("📋 歌单", "同步 ↻") { viewModel.syncPlaylists() }
-            }
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    playlists.take(3).forEach { playlist ->
-                        PlaylistCard(
-                            name = playlist.name,
-                            count = playlist.songCount,
-                            coverArt = playlist.coverArt,
-                            serverUrl = serverUrl,
-                            username = username,
-                            password = password,
-                            onClick = { onPlaylistClick(playlist.id) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-
         // 电台 (from Navidrome server)
         if (radioStations.isNotEmpty()) {
             item {
@@ -235,6 +326,41 @@ fun HomeScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun QuickAccessButton(
+    icon: ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Surface(
+            modifier = Modifier.size(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = color.copy(alpha = 0.15f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = color,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

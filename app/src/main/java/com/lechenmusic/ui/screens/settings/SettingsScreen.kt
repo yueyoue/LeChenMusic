@@ -32,7 +32,6 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val cacheSize by viewModel.cacheSize.collectAsState()
     val serverStats by viewModel.serverStats.collectAsState()
-    val syncStatus by viewModel.syncStatus.collectAsState()
     val context = LocalContext.current
     var showCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -107,8 +106,6 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column {
                     SettingsClickItem(icon = Icons.Default.Storage, iconBg = Color(0xFFFF4757).copy(alpha = 0.15f), label = "音乐缓存大小", value = "${cacheSize} GB", onClick = { showCacheDialog = true })
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsClickItem(icon = Icons.Default.Sync, iconBg = Color(0xFF2ED573).copy(alpha = 0.15f), label = "同步服务器数据", value = if (syncStatus.isNotEmpty()) syncStatus else "同步歌单、歌手、收藏、专辑、歌曲、统计", onClick = { viewModel.syncData() })
                 }
             }
         }

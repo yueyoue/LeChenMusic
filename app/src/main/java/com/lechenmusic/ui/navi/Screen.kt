@@ -21,4 +21,5 @@ sealed class Screen(val route: String) {
         fun createRoute(playlistId: String) = "playlist_detail/$playlistId"
     }
     object Radio : Screen("radio")
+    object AllPlaylists : Screen("all_playlists")
 }

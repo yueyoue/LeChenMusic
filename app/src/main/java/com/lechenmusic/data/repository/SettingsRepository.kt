@@ -26,6 +26,10 @@ class SettingsRepository(private val context: Context) {
         val CACHED_DAILY_SONGS_JSON = stringPreferencesKey("cached_daily_songs_json")
         val CACHED_DAILY_SONGS_DATE = stringPreferencesKey("cached_daily_songs_date")
         val SKIPPED_VERSION_CODE = intPreferencesKey("skipped_version_code")
+        val CACHED_NEWEST_ALBUMS_JSON = stringPreferencesKey("cached_newest_albums_json")
+        val CACHED_RANDOM_ALBUMS_JSON = stringPreferencesKey("cached_random_albums_json")
+        val CACHED_PLAYLISTS_JSON = stringPreferencesKey("cached_playlists_json")
+        val CACHED_RADIO_STATIONS_JSON = stringPreferencesKey("cached_radio_stations_json")
     }
 
     val serverUrl: Flow<String> = context.dataStore.data.map { it[SERVER_URL] ?: "" }
@@ -103,4 +107,17 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSkippedVersionCode(versionCode: Int) {
         context.dataStore.edit { it[SKIPPED_VERSION_CODE] = versionCode }
     }
+
+    // Home page caches for offline display
+    val cachedNewestAlbumsJson: Flow<String> = context.dataStore.data.map { it[CACHED_NEWEST_ALBUMS_JSON] ?: "" }
+    suspend fun saveCachedNewestAlbumsJson(json: String) { context.dataStore.edit { it[CACHED_NEWEST_ALBUMS_JSON] = json } }
+
+    val cachedRandomAlbumsJson: Flow<String> = context.dataStore.data.map { it[CACHED_RANDOM_ALBUMS_JSON] ?: "" }
+    suspend fun saveCachedRandomAlbumsJson(json: String) { context.dataStore.edit { it[CACHED_RANDOM_ALBUMS_JSON] = json } }
+
+    val cachedPlaylistsJson: Flow<String> = context.dataStore.data.map { it[CACHED_PLAYLISTS_JSON] ?: "" }
+    suspend fun saveCachedPlaylistsJson(json: String) { context.dataStore.edit { it[CACHED_PLAYLISTS_JSON] = json } }
+
+    val cachedRadioStationsJson: Flow<String> = context.dataStore.data.map { it[CACHED_RADIO_STATIONS_JSON] ?: "" }
+    suspend fun saveCachedRadioStationsJson(json: String) { context.dataStore.edit { it[CACHED_RADIO_STATIONS_JSON] = json } }
 }

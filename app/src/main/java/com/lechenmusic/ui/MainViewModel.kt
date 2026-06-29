@@ -315,12 +315,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadHomeData() {
         viewModelScope.launch {
+            val gson = Gson()
+            val albumType = object : TypeToken<List<Album>>() {}.type
+            val playlistType = object : TypeToken<List<Playlist>>() {}.type
+            val radioType = object : TypeToken<List<InternetRadioStation>>() {}.type
+
+            // Step 1: Load cached data first for instant/offline display
+            try {
+                val cachedNewest = settings.cachedNewestAlbumsJson.first()
+                if (cachedNewest.isNotBlank()) {
+                    val cached: List<Album> = gson.fromJson(cachedNewest, albumType)
+                    if (cached.isNotEmpty()) _newestAlbums.value = cached
+                }
+            } catch (_: Exception) {}
+            try {
+                val cachedRandom = settings.cachedRandomAlbumsJson.first()
+                if (cachedRandom.isNotBlank()) {
+                    val cached: List<Album> = gson.fromJson(cachedRandom, albumType)
+                    if (cached.isNotEmpty()) _randomAlbums.value = cached
+                }
+            } catch (_: Exception) {}
+            try {
+                val cachedPlaylists = settings.cachedPlaylistsJson.first()
+                if (cachedPlaylists.isNotBlank()) {
+                    val cached: List<Playlist> = gson.fromJson(cachedPlaylists, playlistType)
+                    if (cached.isNotEmpty()) _playlists.value = cached
+                }
+            } catch (_: Exception) {}
+            try {
+                val cachedRadio = settings.cachedRadioStationsJson.first()
+                if (cachedRadio.isNotBlank()) {
+                    val cached: List<InternetRadioStation> = gson.fromJson(cachedRadio, radioType)
+                    if (cached.isNotEmpty()) _radioStations.value = cached
+                }
+            } catch (_: Exception) {}
+
+            // Step 2: Fetch fresh data from server, update cache on success
             // Load newest albums
-            repository.getNewestAlbums(10).onSuccess { _newestAlbums.value = it }
+            repository.getNewestAlbums(10).onSuccess {
+                _newestAlbums.value = it
+                try { settings.saveCachedNewestAlbumsJson(gson.toJson(it)) } catch (_: Exception) {}
+            }
 
             // Load random albums - only if not already loaded (user must click "换一批" to refresh)
             if (_randomAlbums.value.isEmpty()) {
-                repository.getRandomAlbums(10).onSuccess { _randomAlbums.value = it }
+                repository.getRandomAlbums(10).onSuccess {
+                    _randomAlbums.value = it
+                    try { settings.saveCachedRandomAlbumsJson(gson.toJson(it)) } catch (_: Exception) {}
+                }
             }
 
             // Load daily random songs - use cache if same day AND has enough songs
@@ -355,10 +397,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Load playlists
-            repository.getPlaylists().onSuccess { _playlists.value = it }
+            repository.getPlaylists().onSuccess {
+                _playlists.value = it
+                try { settings.saveCachedPlaylistsJson(gson.toJson(it)) } catch (_: Exception) {}
+            }
 
             // Load internet radio stations
-            repository.getInternetRadioStations().onSuccess { _radioStations.value = it }
+            repository.getInternetRadioStations().onSuccess {
+                _radioStations.value = it
+                try { settings.saveCachedRadioStationsJson(gson.toJson(it)) } catch (_: Exception) {}
+            }
 
             // Load starred songs
             repository.getStarred().onSuccess { _starredSongs.value = it.songs }
